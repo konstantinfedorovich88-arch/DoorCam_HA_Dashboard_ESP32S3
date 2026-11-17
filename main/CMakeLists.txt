@@ -1,0 +1,4 @@
+idf_component_register(SRCS "app_main.c" "dashboard_board.c" "dashboard_call.c" "dashboard_ha.c" "dashboard_ui.c"
+                       INCLUDE_DIRS "."
+                       REQUIRES esp_timer esp_system
+                       PRIV_REQUIRES lvgl)
