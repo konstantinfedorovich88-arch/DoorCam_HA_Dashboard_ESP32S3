@@ -34,7 +34,13 @@ static void touch_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
     static uint16_t last_x, last_y;
     uint16_t x = last_x, y = last_y;
     bool pressed = dashboard_board_touch_read(&x, &y);
+    static bool previous_pressed = false;
     if (pressed) { last_x = x; last_y = y; }
+    if (pressed != previous_pressed) {
+        ESP_LOGI(TAG, "LVGL touch %s at x=%u y=%u",
+                 pressed ? "PRESSED" : "RELEASED", last_x, last_y);
+        previous_pressed = pressed;
+    }
     data->point.x = last_x;
     data->point.y = last_y;
     data->state = pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
