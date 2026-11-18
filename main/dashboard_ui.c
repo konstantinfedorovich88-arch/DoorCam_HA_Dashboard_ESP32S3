@@ -1,6 +1,8 @@
 #include "dashboard_ui.h"
 #include "dashboard_call.h"
+#include "esp_log.h"
 
+static const char *TAG = "DASH_UI";
 static dash_call_t s_call;
 static lv_obj_t *s_overlay;
 static lv_obj_t *s_status;
@@ -63,6 +65,7 @@ void dashboard_ui_show_incoming_call(void)
 static void on_demo_ring(lv_event_t *event)
 {
     (void)event;
+    ESP_LOGI(TAG, "Test call UI CLICKED");
     dashboard_ui_show_incoming_call();
 }
 
