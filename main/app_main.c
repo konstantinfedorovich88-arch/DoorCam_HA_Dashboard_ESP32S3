@@ -16,8 +16,8 @@ void app_main(void)
         ESP_LOGW(TAG, "Display integration pending: %s", esp_err_to_name(err));
         return;
     }
-    /* Future board port will own LVGL creation / locking. Do not call
-       dashboard_ui_create() until it provides that contract. */
+    ESP_LOGI(TAG, "RGB color-bar diagnostic running; LVGL and touch not enabled yet");
+    /* Do not call dashboard_ui_create() until LVGL is initialized. */
     (void)dashboard_ha_start;
     (void)dashboard_ui_create;
 }
