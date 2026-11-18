@@ -139,6 +139,8 @@ bool dashboard_board_touch_read(uint16_t *x, uint16_t *y)
     if (!s_touch) return false;
     uint8_t status = 0;
     if (gt911_read(0x814e, &status, 1) != ESP_OK) return false;
+    static uint32_t poll_count = 0;
+    if (++poll_count % 200 == 0) ESP_LOGI(TAG, "GT911 polling: status=0x%02x", status);
     if (!(status & 0x80)) return false;
     bool pressed = false;
     if ((status & 0x0f) > 0 && (status & 0x0f) <= 5) {
@@ -146,6 +148,12 @@ bool dashboard_board_touch_read(uint16_t *x, uint16_t *y)
         if (gt911_read(0x8150, point, sizeof(point)) == ESP_OK) {
             uint16_t px = (uint16_t)point[1] | ((uint16_t)point[2] << 8);
             uint16_t py = (uint16_t)point[3] | ((uint16_t)point[4] << 8);
+            static uint32_t last_log_ms = 0;
+            uint32_t now_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+            if (now_ms - last_log_ms >= 250) {
+                ESP_LOGI(TAG, "GT911 touch raw: x=%u y=%u status=0x%02x", px, py, status);
+                last_log_ms = now_ms;
+            }
             if (px < LCD_W && py < LCD_H) {
                 *x = px;
                 *y = py;
