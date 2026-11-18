@@ -145,19 +145,19 @@ bool dashboard_board_touch_read(uint16_t *x, uint16_t *y)
     bool pressed = false;
     if ((status & 0x0f) > 0 && (status & 0x0f) <= 5) {
         uint8_t point[8] = {0};
-        if (gt911_read(0x8150, point, sizeof(point)) == ESP_OK) {
-            uint16_t px = (uint16_t)point[2] | ((uint16_t)point[3] << 8);
-            uint16_t py = (uint16_t)point[4] | ((uint16_t)point[5] << 8);
+        if (gt911_read(0x814f, point, sizeof(point)) == ESP_OK) {
+            uint16_t px = (uint16_t)point[1] | ((uint16_t)point[2] << 8);
+            uint16_t py = (uint16_t)point[3] | ((uint16_t)point[4] << 8);
             static uint32_t last_log_ms = 0;
             uint32_t now_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
             if (now_ms - last_log_ms >= 250) {
                 ESP_LOGI(TAG, "GT911 touch raw: x=%u y=%u mapped: x=%u y=%u status=0x%02x",
-                         px, py, py, px, status);
+                         px, py, px, py, status);
                 last_log_ms = now_ms;
             }
-            /* GT911 sensor axes are transposed relative to the 800x480 RGB panel.\n             * Physical lower-left button maps from raw (y,x) coordinates. */
-            uint16_t screen_x = py;
-            uint16_t screen_y = px;
+            /* GT911 first point begins at 0x814F: track ID, X_L, X_H, Y_L, Y_H. */
+            uint16_t screen_x = px;
+            uint16_t screen_y = py;
             if (screen_x < LCD_W && screen_y < LCD_H) {
                 *x = screen_x;
                 *y = screen_y;
