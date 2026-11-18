@@ -85,3 +85,8 @@ esp_err_t dashboard_board_init(void)
     ESP_LOGI(TAG, "RGB diagnostic pattern ready: red / green / blue");
     return ESP_OK;
 }
+
+esp_lcd_panel_handle_t dashboard_board_panel(void)
+{
+    return s_panel;
+}
