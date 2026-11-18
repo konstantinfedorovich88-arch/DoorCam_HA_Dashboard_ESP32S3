@@ -1,11 +1,123 @@
 #include "dashboard_ui.h"
 #include "dashboard_call.h"
+#include "dashboard_wifi.h"
+#include <stdio.h>
 #include "esp_log.h"
 
 static const char *TAG = "DASH_UI";
 static dash_call_t s_call;
 static lv_obj_t *s_overlay;
 static lv_obj_t *s_status;
+static void make_button(lv_obj_t *parent, const char *text, int x, int y, lv_event_cb_t cb);
+
+static lv_obj_t *s_wifi_panel, *s_wifi_status, *s_wifi_dropdown, *s_wifi_password, *s_wifi_keyboard;
+static unsigned s_wifi_generation, s_wifi_count;
+static char s_wifi_ssids[DASH_WIFI_MAX_AP][33];
+
+static void wifi_refresh(lv_timer_t *timer)
+{
+    (void)timer;
+    if (!s_wifi_panel) return;
+    dash_wifi_snapshot_t snap;
+    dash_wifi_snapshot(&snap);
+    char status[140];
+    snprintf(status, sizeof(status), "Wi-Fi: %s%s%s", snap.status,
+             snap.ip[0] ? " IP: " : "", snap.ip);
+    lv_label_set_text(s_wifi_status, status);
+    if (snap.generation != s_wifi_generation) {
+        s_wifi_generation = snap.generation;
+        s_wifi_count = snap.count;
+        char options[768] = {0};
+        size_t used = 0;
+        for (unsigned i = 0; i < snap.count; ++i) {
+            snprintf(s_wifi_ssids[i], sizeof(s_wifi_ssids[i]), "%s", snap.aps[i].ssid);
+            int n = snprintf(options + used, sizeof(options) - used, "%s%s",
+                             i ? "\\n" : "", snap.aps[i].ssid[0] ? snap.aps[i].ssid : "(hidden)");
+            if (n < 0 || (size_t)n >= sizeof(options) - used) break;
+            used += (size_t)n;
+        }
+        lv_dropdown_set_options(s_wifi_dropdown, used ? options : "No networks found");
+    }
+}
+static void wifi_scan_cb(lv_event_t *event)
+{
+    (void)event;
+    esp_err_t err = dash_wifi_scan();
+    if (err != ESP_OK) ESP_LOGW(TAG, "Scan: %s", esp_err_to_name(err));
+}
+static void wifi_connect_cb(lv_event_t *event)
+{
+    (void)event;
+    if (!s_wifi_count) {
+        lv_label_set_text(s_wifi_status, "Scan for networks first");
+        return;
+    }
+    unsigned i = lv_dropdown_get_selected(s_wifi_dropdown);
+    if (i >= s_wifi_count) return;
+    esp_err_t err = dash_wifi_connect(s_wifi_ssids[i], lv_textarea_get_text(s_wifi_password));
+    if (err != ESP_OK) {
+        lv_label_set_text(s_wifi_status, "Cannot connect; check password");
+        ESP_LOGW(TAG, "Connect: %s", esp_err_to_name(err));
+    } else {
+        lv_obj_add_flag(s_wifi_keyboard, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+static void wifi_focus_cb(lv_event_t *event)
+{
+    (void)event;
+    lv_obj_remove_flag(s_wifi_keyboard, LV_OBJ_FLAG_HIDDEN);
+}
+static void wifi_keyboard_done_cb(lv_event_t *event)
+{
+    (void)event;
+    lv_obj_add_flag(s_wifi_keyboard, LV_OBJ_FLAG_HIDDEN);
+}
+static void wifi_close_cb(lv_event_t *event)
+{
+    (void)event;
+    lv_obj_delete(s_wifi_panel);
+    s_wifi_panel = NULL;
+    s_wifi_keyboard = NULL;
+}
+static void wifi_open_cb(lv_event_t *event)
+{
+    (void)event;
+    if (s_wifi_panel) return;
+    s_wifi_panel = lv_obj_create(lv_screen_active());
+    lv_obj_set_size(s_wifi_panel, 740, 430);
+    lv_obj_center(s_wifi_panel);
+    lv_obj_t *heading = lv_label_create(s_wifi_panel);
+    lv_label_set_text(heading, "Wi-Fi settings (2.4 GHz)");
+    lv_obj_set_pos(heading, 20, 10);
+    s_wifi_status = lv_label_create(s_wifi_panel);
+    lv_obj_set_pos(s_wifi_status, 20, 48);
+    lv_label_set_text(s_wifi_status, "Wi-Fi starting...");
+    s_wifi_dropdown = lv_dropdown_create(s_wifi_panel);
+    lv_obj_set_pos(s_wifi_dropdown, 20, 85);
+    lv_obj_set_width(s_wifi_dropdown, 380);
+    lv_dropdown_set_options(s_wifi_dropdown, "Tap Scan");
+    s_wifi_password = lv_textarea_create(s_wifi_panel);
+    lv_obj_set_pos(s_wifi_password, 20, 145);
+    lv_obj_set_size(s_wifi_password, 380, 50);
+    lv_textarea_set_one_line(s_wifi_password, true);
+    lv_textarea_set_password_mode(s_wifi_password, true);
+    lv_textarea_set_placeholder_text(s_wifi_password, "Wi-Fi password");
+    lv_textarea_set_max_length(s_wifi_password, 63);
+    lv_obj_add_event_cb(s_wifi_password, wifi_focus_cb, LV_EVENT_FOCUSED, NULL);
+    make_button(s_wifi_panel, "Scan", 430, 85, wifi_scan_cb);
+    make_button(s_wifi_panel, "Connect", 430, 145, wifi_connect_cb);
+    make_button(s_wifi_panel, "Close", 560, 10, wifi_close_cb);
+    s_wifi_keyboard = lv_keyboard_create(s_wifi_panel);
+    lv_obj_set_size(s_wifi_keyboard, 700, 195);
+    lv_obj_align(s_wifi_keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_keyboard_set_textarea(s_wifi_keyboard, s_wifi_password);
+    lv_obj_add_event_cb(s_wifi_keyboard, wifi_keyboard_done_cb, LV_EVENT_READY, NULL);
+    lv_obj_add_event_cb(s_wifi_keyboard, wifi_keyboard_done_cb, LV_EVENT_CANCEL, NULL);
+    lv_obj_add_flag(s_wifi_keyboard, LV_OBJ_FLAG_HIDDEN);
+    s_wifi_generation = (unsigned)-1;
+    wifi_refresh(NULL);
+}
+
 
 static void add_label(lv_obj_t *parent, const char *text, int x, int y)
 {
@@ -81,4 +193,6 @@ void dashboard_ui_create(void)
     lv_label_set_text(s_status, "DoorCam: waiting for integration");
     lv_obj_set_pos(s_status, 28, 250);
     make_button(root, "Test call UI", 28, 330, on_demo_ring);
+    make_button(root, "Wi-Fi", 200, 330, wifi_open_cb);
+    lv_timer_create(wifi_refresh, 700, NULL);
 }
