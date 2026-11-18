@@ -2,6 +2,7 @@
 #include "driver/i2c_master.h"
 #include "esp_lcd_panel_rgb.h"
 #include "esp_log.h"
+#include "esp_check.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string.h>
