@@ -146,8 +146,8 @@ bool dashboard_board_touch_read(uint16_t *x, uint16_t *y)
     if ((status & 0x0f) > 0 && (status & 0x0f) <= 5) {
         uint8_t point[8] = {0};
         if (gt911_read(0x8150, point, sizeof(point)) == ESP_OK) {
-            uint16_t px = (uint16_t)point[1] | ((uint16_t)point[2] << 8);
-            uint16_t py = (uint16_t)point[3] | ((uint16_t)point[4] << 8);
+            uint16_t px = (uint16_t)point[0] | ((uint16_t)point[1] << 8);
+            uint16_t py = (uint16_t)point[2] | ((uint16_t)point[3] << 8);
             static uint32_t last_log_ms = 0;
             uint32_t now_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
             if (now_ms - last_log_ms >= 250) {
