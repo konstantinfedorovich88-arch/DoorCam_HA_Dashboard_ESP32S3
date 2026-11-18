@@ -28,6 +28,18 @@ static void lcd_flush(lv_display_t *display, const lv_area_t *area, uint8_t *px)
     lv_display_flush_ready(display);
 }
 
+static void touch_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
+{
+    (void)indev;
+    static uint16_t last_x, last_y;
+    uint16_t x = last_x, y = last_y;
+    bool pressed = dashboard_board_touch_read(&x, &y);
+    if (pressed) { last_x = x; last_y = y; }
+    data->point.x = last_x;
+    data->point.y = last_y;
+    data->state = pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+}
+
 static void dashboard_lvgl_task(void *arg)
 {
     (void)arg;
@@ -55,8 +67,17 @@ static void dashboard_lvgl_task(void *arg)
     }
     lv_display_set_buffers(display, buf1, buf2, bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(display, lcd_flush);
+    if (dashboard_board_touch_init() == ESP_OK) {
+        lv_indev_t *touch = lv_indev_create();
+        lv_indev_set_type(touch, LV_INDEV_TYPE_POINTER);
+        lv_indev_set_read_cb(touch, touch_read_cb);
+        lv_indev_set_display(touch, display);
+        ESP_LOGI(TAG, "GT911 LVGL touch input registered");
+    } else {
+        ESP_LOGW(TAG, "Touch unavailable; UI will remain display-only");
+    }
     dashboard_ui_create();
-    ESP_LOGI(TAG, "LVGL UI created; GT911 touch and Wi-Fi setup pending");
+    ESP_LOGI(TAG, "LVGL UI created; Wi-Fi setup pending");
 
     while (true) {
         uint32_t wait_ms = lv_timer_handler();
