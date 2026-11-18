@@ -1,6 +1,7 @@
 #include "dashboard_board.h"
 #include "driver/i2c_master.h"
 #include "esp_lcd_panel_rgb.h"
+#include "esp_lcd_panel_ops.h"
 #include "esp_log.h"
 #include "esp_check.h"
 #include "freertos/FreeRTOS.h"
@@ -56,10 +57,8 @@ esp_err_t dashboard_board_init(void)
             .flags.pclk_active_neg = true,
         },
         .data_width = 16,
-        .bits_per_pixel = 16,
         .num_fbs = 1,
         .bounce_buffer_size_px = LCD_W * 10,
-        .psram_trans_align = 64,
         .hsync_gpio_num = 46, .vsync_gpio_num = 3,
         .de_gpio_num = 5, .pclk_gpio_num = 7,
         .disp_gpio_num = -1,
