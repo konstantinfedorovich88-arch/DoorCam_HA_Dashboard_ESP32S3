@@ -32,7 +32,7 @@ static void wifi_refresh(lv_timer_t *timer)
         for (unsigned i = 0; i < snap.count; ++i) {
             snprintf(s_wifi_ssids[i], sizeof(s_wifi_ssids[i]), "%s", snap.aps[i].ssid);
             int n = snprintf(options + used, sizeof(options) - used, "%s%s",
-                             i ? "\\n" : "", snap.aps[i].ssid[0] ? snap.aps[i].ssid : "(hidden)");
+                             i ? "\n" : "", snap.aps[i].ssid[0] ? snap.aps[i].ssid : "(hidden)");
             if (n < 0 || (size_t)n >= sizeof(options) - used) break;
             used += (size_t)n;
         }
@@ -59,18 +59,18 @@ static void wifi_connect_cb(lv_event_t *event)
         lv_label_set_text(s_wifi_status, "Cannot connect; check password");
         ESP_LOGW(TAG, "Connect: %s", esp_err_to_name(err));
     } else {
-        lv_obj_add_flag(s_wifi_keyboard, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(s_wifi_keyboard, true);
     }
 }
 static void wifi_focus_cb(lv_event_t *event)
 {
     (void)event;
-    lv_obj_remove_flag(s_wifi_keyboard, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(s_wifi_keyboard, false);
 }
 static void wifi_keyboard_done_cb(lv_event_t *event)
 {
     (void)event;
-    lv_obj_add_flag(s_wifi_keyboard, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(s_wifi_keyboard, true);
 }
 static void wifi_close_cb(lv_event_t *event)
 {
@@ -113,7 +113,7 @@ static void wifi_open_cb(lv_event_t *event)
     lv_keyboard_set_textarea(s_wifi_keyboard, s_wifi_password);
     lv_obj_add_event_cb(s_wifi_keyboard, wifi_keyboard_done_cb, LV_EVENT_READY, NULL);
     lv_obj_add_event_cb(s_wifi_keyboard, wifi_keyboard_done_cb, LV_EVENT_CANCEL, NULL);
-    lv_obj_add_flag(s_wifi_keyboard, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(s_wifi_keyboard, true);
     s_wifi_generation = (unsigned)-1;
     wifi_refresh(NULL);
 }
