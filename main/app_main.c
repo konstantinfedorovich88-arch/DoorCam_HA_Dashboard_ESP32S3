@@ -8,6 +8,7 @@
 #include "lvgl.h"
 #include "dashboard_board.h"
 #include "dashboard_ui.h"
+#include "dashboard_wifi.h"
 
 static const char *TAG = "DASH_APP";
 #define DISPLAY_W 800
@@ -83,7 +84,7 @@ static void dashboard_lvgl_task(void *arg)
         ESP_LOGW(TAG, "Touch unavailable; UI will remain display-only");
     }
     dashboard_ui_create();
-    ESP_LOGI(TAG, "LVGL UI created; Wi-Fi setup pending");
+    ESP_LOGI(TAG, "LVGL UI created; Wi-Fi settings available");
 
     while (true) {
         uint32_t wait_ms = lv_timer_handler();
@@ -95,6 +96,8 @@ static void dashboard_lvgl_task(void *arg)
 
 void app_main(void)
 {
+    esp_err_t wifi_err = dash_wifi_init();
+    if (wifi_err != ESP_OK) ESP_LOGE(TAG, "Wi-Fi init failed: %s", esp_err_to_name(wifi_err));
     BaseType_t ok = xTaskCreatePinnedToCore(dashboard_lvgl_task, "dashboard_lvgl",
                                             16384, NULL, 5, NULL, 1);
     if (ok != pdPASS) ESP_LOGE(TAG, "Failed to create LVGL task");
