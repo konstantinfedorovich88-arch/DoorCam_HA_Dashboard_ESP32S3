@@ -28,8 +28,9 @@ static void lcd_flush(lv_display_t *display, const lv_area_t *area, uint8_t *px)
     lv_display_flush_ready(display);
 }
 
-void app_main(void)
+static void dashboard_lvgl_task(void *arg)
 {
+    (void)arg;
     ESP_LOGI(TAG, "DoorCam HA Dashboard LVGL display test");
     esp_err_t err = dashboard_board_init();
     if (err != ESP_OK) {
@@ -63,4 +64,11 @@ void app_main(void)
         if (wait_ms > 30) wait_ms = 30;
         vTaskDelay(pdMS_TO_TICKS(wait_ms));
     }
+}
+
+void app_main(void)
+{
+    BaseType_t ok = xTaskCreatePinnedToCore(dashboard_lvgl_task, "dashboard_lvgl",
+                                            16384, NULL, 5, NULL, 1);
+    if (ok != pdPASS) ESP_LOGE(TAG, "Failed to create LVGL task");
 }
