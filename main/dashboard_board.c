@@ -151,7 +151,8 @@ bool dashboard_board_touch_read(uint16_t *x, uint16_t *y)
             static uint32_t last_log_ms = 0;
             uint32_t now_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
             if (now_ms - last_log_ms >= 250) {
-                ESP_LOGI(TAG, "GT911 touch raw: x=%u y=%u mapped: x=%u y=%u status=0x%02x",\n                         px, py, py, px, status);
+                ESP_LOGI(TAG, "GT911 touch raw: x=%u y=%u mapped: x=%u y=%u status=0x%02x",
+                         px, py, py, px, status);
                 last_log_ms = now_ms;
             }
             /* GT911 sensor axes are transposed relative to the 800x480 RGB panel.\n             * Physical lower-left button maps from raw (y,x) coordinates. */
