@@ -58,7 +58,8 @@ esp_err_t dashboard_board_init(void)
         },
         .data_width = 16,
         .num_fbs = 1,
-        .bounce_buffer_size_px = LCD_W * 10,
+        /* Larger DMA bounce buffers reduce RGB underflow when Wi-Fi uses PSRAM. */
+        .bounce_buffer_size_px = LCD_W * 20,
         .hsync_gpio_num = 46, .vsync_gpio_num = 3,
         .de_gpio_num = 5, .pclk_gpio_num = 7,
         .disp_gpio_num = -1,
