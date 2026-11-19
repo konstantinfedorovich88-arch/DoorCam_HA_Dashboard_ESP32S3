@@ -6,3 +6,6 @@
 esp_err_t dashboard_ha_start(void);
 esp_err_t dashboard_ha_probe(const char *host, unsigned port);
 void dashboard_ha_status(char *out, unsigned capacity);
+esp_err_t dashboard_ha_save_token(const char *token);
+esp_err_t dashboard_ha_auth_test(void);
+bool dashboard_ha_has_token(void);
