@@ -216,10 +216,17 @@ static void ha_open_cb(lv_event_t *event)
     lv_obj_t *address = lv_label_create(s_ha_panel);
     lv_label_set_text(address, "Server: http://192.168.0.215:8123");
     lv_obj_set_pos(address, 16, 38);
+    char setup_code[32];
+    dashboard_ha_setup_code(setup_code, sizeof(setup_code));
+    char setup_hint[120];
+    snprintf(setup_hint, sizeof(setup_hint), "Web setup: http://<ESP32-IP>/  Code: %s", setup_code);
+    lv_obj_t *hint = lv_label_create(s_ha_panel);
+    lv_label_set_text(hint, setup_hint);
+    lv_obj_set_pos(hint, 16, 58);
     s_ha_status = lv_label_create(s_ha_panel);
     lv_label_set_long_mode(s_ha_status, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(s_ha_status, 680);
-    lv_obj_set_pos(s_ha_status, 16, 72);
+    lv_obj_set_pos(s_ha_status, 16, 85);
     s_ha_token = lv_textarea_create(s_ha_panel);
     lv_obj_set_pos(s_ha_token, 16, 112);
     lv_obj_set_size(s_ha_token, 670, 42);
