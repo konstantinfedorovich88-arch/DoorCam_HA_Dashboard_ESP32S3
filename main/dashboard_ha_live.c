@@ -39,6 +39,11 @@ static void save_entity(const char *id, const char *state)
         strncmp(id,"sensor.",7) && strncmp(id,"binary_sensor.",14) &&
         strncmp(id,"climate.",8)) return;
     xSemaphoreTake(s_mutex,portMAX_DELAY);
+    for (unsigned k=0;k<s_snapshot.panel_count;k++) {
+        dashboard_ha_entity_t *card=&s_snapshot.panel_cards[k];
+        if (!strcmp(card->entity_id,id))
+            snprintf(card->state,sizeof(card->state),"%s",state);
+    }
     unsigned index=0;
     for (;index<s_snapshot.count;index++)
         if (!strcmp(s_snapshot.entities[index].entity_id,id)) break;
