@@ -15,6 +15,15 @@ static SemaphoreHandle_t s_lock;
 static dash_wifi_snapshot_t s_state;
 static bool s_ready;
 static bool s_want_connect;
+static bool s_scan_wait_disconnect;
+static bool s_resume_after_scan;
+
+static esp_err_t start_scan_now(void)
+{
+    wifi_scan_config_t cfg = {.show_hidden = false};
+    return esp_wifi_scan_start(&cfg, false);
+}
+
 
 static void set_status(const char *value)
 {
@@ -41,6 +50,10 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         if (!s_state.connected && !s_state.connecting)
             set_status(err == ESP_OK ? "Scan complete" : "Wi-Fi scan failed");
         xSemaphoreGive(s_lock);
+        if (s_resume_after_scan) {
+            s_resume_after_scan = false;
+            if (s_want_connect) esp_wifi_connect();
+        }
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
         if (s_want_connect) esp_wifi_connect();
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
@@ -50,7 +63,20 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         s_state.ip[0] = 0;
         set_status(s_want_connect ? "Reconnecting..." : "Disconnected");
         xSemaphoreGive(s_lock);
-        if (s_want_connect) esp_wifi_connect();
+        if (s_scan_wait_disconnect) {
+            s_scan_wait_disconnect = false;
+            esp_err_t scan_err = start_scan_now();
+            if (scan_err != ESP_OK) {
+                xSemaphoreTake(s_lock, portMAX_DELAY);
+                s_state.scanning = false;
+                set_status("Scan failed");
+                xSemaphoreGive(s_lock);
+                s_resume_after_scan = false;
+                if (s_want_connect) esp_wifi_connect();
+            }
+        } else if (!s_state.scanning && s_want_connect) {
+            esp_wifi_connect();
+        }
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *evt = (ip_event_got_ip_t *)data;
         xSemaphoreTake(s_lock, portMAX_DELAY);
@@ -105,11 +131,22 @@ esp_err_t dash_wifi_scan(void)
         xSemaphoreGive(s_lock);
         return ESP_ERR_INVALID_STATE;
     }
+    bool was_connecting = s_state.connecting;
     s_state.scanning = true;
     set_status("Scanning...");
     xSemaphoreGive(s_lock);
-    wifi_scan_config_t cfg = {.show_hidden = false};
-    esp_err_t err = esp_wifi_scan_start(&cfg, false);
+
+    /* A scan cannot start while STA is connecting. Pause reconnect,
+       disconnect first and launch the scan from the DISCONNECTED event. */
+    if (was_connecting) {
+        s_resume_after_scan = s_want_connect;
+        s_scan_wait_disconnect = true;
+        esp_err_t err = esp_wifi_disconnect();
+        if (err == ESP_OK) return ESP_OK;
+        s_scan_wait_disconnect = false;
+        s_resume_after_scan = false;
+    }
+    esp_err_t err = start_scan_now();
     if (err != ESP_OK) {
         xSemaphoreTake(s_lock, portMAX_DELAY);
         s_state.scanning = false;
