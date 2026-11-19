@@ -126,6 +126,7 @@ static void wifi_open_cb(lv_event_t *event)
 
 static lv_obj_t *s_ha_panel, *s_ha_status, *s_ha_token, *s_ha_keyboard;
 static lv_timer_t *s_ha_timer;
+static lv_obj_t *s_ha_entities;
 
 static void ha_refresh(lv_timer_t *timer)
 {
@@ -135,6 +136,21 @@ static void ha_refresh(lv_timer_t *timer)
     dashboard_ha_status(status, sizeof(status));
     if (strcmp(lv_label_get_text(s_ha_status), status) != 0)
         lv_label_set_text(s_ha_status, status);
+    if (s_ha_entities) {
+        dashboard_ha_snapshot_t snap;
+        dashboard_ha_live_snapshot(&snap);
+        char lines[850];
+        int used = snprintf(lines, sizeof(lines), "Live: %s (%u entities)\\n",
+                            snap.connected ? "connected" : "offline", snap.count);
+        for (unsigned i = 0; i < snap.count && used > 0 && used < (int)sizeof(lines); i++) {
+            int n = snprintf(lines + used, sizeof(lines) - (size_t)used, "%s: %s\\n",
+                             snap.entities[i].entity_id, snap.entities[i].state);
+            if (n < 0) break;
+            used += n;
+        }
+        if (strcmp(lv_label_get_text(s_ha_entities), lines) != 0)
+            lv_label_set_text(s_ha_entities, lines);
+    }
 }
 
 static void ha_close_cb(lv_event_t *event)
@@ -146,6 +162,7 @@ static void ha_close_cb(lv_event_t *event)
     s_ha_status = NULL;
     s_ha_token = NULL;
     s_ha_keyboard = NULL;
+    s_ha_entities = NULL;
 }
 
 static void ha_test_cb(lv_event_t *event)
@@ -203,6 +220,13 @@ static void ha_auth_cb(lv_event_t *event)
     else ha_refresh(NULL);
 }
 
+static void ha_live_cb(lv_event_t *event)
+{
+    (void)event;
+    esp_err_t err = dashboard_ha_live_start();
+    if (err != ESP_OK) lv_label_set_text(s_ha_status, "Cannot start HA live connection");
+}
+
 static void ha_open_cb(lv_event_t *event)
 {
     (void)event;
@@ -239,6 +263,11 @@ static void ha_open_cb(lv_event_t *event)
     make_button(s_ha_panel, "Test auth", 185, 165, ha_auth_cb);
     make_button(s_ha_panel, "Test server", 354, 165, ha_test_cb);
     make_button(s_ha_panel, "Close", 525, 165, ha_close_cb);
+    make_button(s_ha_panel, "Live states", 16, 223, ha_live_cb);
+    s_ha_entities = lv_label_create(s_ha_panel);
+    lv_label_set_long_mode(s_ha_entities, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(s_ha_entities, 480);
+    lv_obj_set_pos(s_ha_entities, 185, 223);
     s_ha_keyboard = lv_keyboard_create(s_ha_panel);
     lv_obj_set_size(s_ha_keyboard, 690, 195);
     lv_obj_align(s_ha_keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
