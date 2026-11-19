@@ -322,7 +322,7 @@ static void cards_open_cb(lv_event_t *event)
     lv_obj_set_size(s_cards_panel,760,435);
     lv_obj_center(s_cards_panel);
     lv_obj_t *title=lv_label_create(s_cards_panel);
-    lv_label_set_text(title,"Home Assistant - devices (read only)");
+    lv_label_set_text(title,"DoorCam Panel - Home Assistant (read only)");
     lv_obj_set_pos(title,14,10);
     make_button(s_cards_panel,"Close",570,2,cards_close_cb);
     for (unsigned i=0;i<DASH_HA_MAX_ENTITIES;i++) {
