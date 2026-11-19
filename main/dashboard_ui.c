@@ -154,7 +154,7 @@ static void ha_test_cb(lv_event_t *event)
         lv_label_set_text(s_ha_status, "Connect Wi-Fi first");
         return;
     }
-    esp_err_t err = dashboard_ha_probe("100.103.93.26", 8123);
+    esp_err_t err = dashboard_ha_probe("192.168.0.215", 8123);
     if (err != ESP_OK) lv_label_set_text(s_ha_status, "HA test already running or unavailable");
     else ha_refresh(NULL);
 }
@@ -170,7 +170,7 @@ static void ha_open_cb(lv_event_t *event)
     lv_label_set_text(title, "Home Assistant connection");
     lv_obj_set_pos(title, 20, 12);
     lv_obj_t *address = lv_label_create(s_ha_panel);
-    lv_label_set_text(address, "Server: http://100.103.93.26:8123");
+    lv_label_set_text(address, "Server: http://192.168.0.215:8123");
     lv_obj_set_pos(address, 20, 62);
     s_ha_status = lv_label_create(s_ha_panel);
     lv_label_set_long_mode(s_ha_status, LV_LABEL_LONG_WRAP);
