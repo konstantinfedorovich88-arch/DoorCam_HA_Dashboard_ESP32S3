@@ -296,7 +296,7 @@ static void cards_refresh(lv_timer_t *timer)
         if (!s_card_labels[i]) continue;
         char line[160];
         if (i < snap.count)
-            snprintf(line,sizeof(line),"%s\\n%s",snap.entities[i].entity_id,
+            snprintf(line,sizeof(line),"%s\n%s",snap.entities[i].entity_id,
                      snap.entities[i].state);
         else
             snprintf(line,sizeof(line),"Waiting for device...");
@@ -335,7 +335,7 @@ static void cards_open_cb(lv_event_t *event)
         lv_label_set_text(s_card_labels[i],"Waiting for device...");
         lv_obj_center(s_card_labels[i]);
     }
-    s_cards_timer=lv_timer_create(cards_refresh,700,NULL);
+    s_cards_timer=lv_timer_create(cards_refresh,1200,NULL);
     cards_refresh(NULL);
 }
 
