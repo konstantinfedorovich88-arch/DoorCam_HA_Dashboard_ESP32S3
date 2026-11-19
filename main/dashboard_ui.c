@@ -124,7 +124,8 @@ static void wifi_open_cb(lv_event_t *event)
 }
 
 
-static lv_obj_t *s_ha_panel, *s_ha_status, *s_ha_timer;
+static lv_obj_t *s_ha_panel, *s_ha_status;
+static lv_timer_t *s_ha_timer;
 
 static void ha_refresh(lv_timer_t *timer)
 {
