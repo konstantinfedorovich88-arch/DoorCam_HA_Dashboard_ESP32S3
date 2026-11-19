@@ -10,7 +10,7 @@
 #include <stdlib.h>
 
 #define HA_WS_TOKEN_CAP 512
-#define HA_WS_MESSAGE_CAP 24576
+#define HA_WS_MESSAGE_CAP 131072
 static const char *TAG = "DASH_HA_LIVE";
 static esp_websocket_client_handle_t s_ws;
 static SemaphoreHandle_t s_mutex;
