@@ -91,7 +91,8 @@ static void process_message(char *message)
         s_snapshot.connected=true;
         xSemaphoreGive(s_mutex);
         ESP_LOGI(TAG,"Home Assistant WebSocket authenticated");
-        esp_websocket_client_send_text(s_ws,"{\"id\":1,\"type\":\"subscribe_events\",\"event_type\":\"state_changed\"}",66,pdMS_TO_TICKS(1000));
+        const char *subscribe="{\"id\":1,\"type\":\"subscribe_events\",\"event_type\":\"state_changed\"}";
+        esp_websocket_client_send_text(s_ws,subscribe,strlen(subscribe),pdMS_TO_TICKS(1000));
         const char *get_states="{\"id\":2,\"type\":\"get_states\"}";
         esp_websocket_client_send_text(s_ws,get_states,strlen(get_states),pdMS_TO_TICKS(1000));
     } else if (!strcmp(type->valuestring,"auth_invalid")) {
