@@ -1,6 +1,7 @@
 #include "dashboard_ui.h"
 #include "dashboard_call.h"
 #include "dashboard_wifi.h"
+#include "dashboard_ha.h"
 #include <stdio.h>
 #include <string.h>
 #include "esp_log.h"
@@ -123,6 +124,64 @@ static void wifi_open_cb(lv_event_t *event)
 }
 
 
+static lv_obj_t *s_ha_panel, *s_ha_status, *s_ha_timer;
+
+static void ha_refresh(lv_timer_t *timer)
+{
+    (void)timer;
+    if (!s_ha_status) return;
+    char status[100];
+    dashboard_ha_status(status, sizeof(status));
+    if (strcmp(lv_label_get_text(s_ha_status), status) != 0)
+        lv_label_set_text(s_ha_status, status);
+}
+
+static void ha_close_cb(lv_event_t *event)
+{
+    (void)event;
+    if (s_ha_timer) { lv_timer_delete(s_ha_timer); s_ha_timer = NULL; }
+    lv_obj_delete(s_ha_panel);
+    s_ha_panel = NULL;
+    s_ha_status = NULL;
+}
+
+static void ha_test_cb(lv_event_t *event)
+{
+    (void)event;
+    dash_wifi_snapshot_t snap;
+    dash_wifi_snapshot(&snap);
+    if (!snap.connected) {
+        lv_label_set_text(s_ha_status, "Connect Wi-Fi first");
+        return;
+    }
+    esp_err_t err = dashboard_ha_probe("100.103.93.26", 8123);
+    if (err != ESP_OK) lv_label_set_text(s_ha_status, "HA test already running or unavailable");
+    else ha_refresh(NULL);
+}
+
+static void ha_open_cb(lv_event_t *event)
+{
+    (void)event;
+    if (s_ha_panel) return;
+    s_ha_panel = lv_obj_create(lv_screen_active());
+    lv_obj_set_size(s_ha_panel, 680, 290);
+    lv_obj_center(s_ha_panel);
+    lv_obj_t *title = lv_label_create(s_ha_panel);
+    lv_label_set_text(title, "Home Assistant connection");
+    lv_obj_set_pos(title, 20, 12);
+    lv_obj_t *address = lv_label_create(s_ha_panel);
+    lv_label_set_text(address, "Server: http://100.103.93.26:8123");
+    lv_obj_set_pos(address, 20, 62);
+    s_ha_status = lv_label_create(s_ha_panel);
+    lv_label_set_long_mode(s_ha_status, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(s_ha_status, 620);
+    lv_obj_set_pos(s_ha_status, 20, 110);
+    make_button(s_ha_panel, "Test server", 20, 175, ha_test_cb);
+    make_button(s_ha_panel, "Close", 465, 175, ha_close_cb);
+    s_ha_timer = lv_timer_create(ha_refresh, 800, NULL);
+    ha_refresh(NULL);
+}
+
 static void add_label(lv_obj_t *parent, const char *text, int x, int y)
 {
     lv_obj_t *label = lv_label_create(parent);
@@ -198,5 +257,6 @@ void dashboard_ui_create(void)
     lv_obj_set_pos(s_status, 28, 250);
     make_button(root, "Test call UI", 28, 330, on_demo_ring);
     make_button(root, "Wi-Fi", 200, 330, wifi_open_cb);
+    make_button(root, "Home Assistant", 372, 330, ha_open_cb);
     lv_timer_create(wifi_refresh, 700, NULL);
 }
