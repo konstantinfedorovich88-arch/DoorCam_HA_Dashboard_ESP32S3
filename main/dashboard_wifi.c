@@ -57,6 +57,10 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
         if (s_want_connect) esp_wifi_connect();
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
+        const wifi_event_sta_disconnected_t *disc = (const wifi_event_sta_disconnected_t *)data;
+        ESP_LOGW(TAG, "STA disconnected: reason=%u, scan=%d, reconnect=%d",
+                 disc ? (unsigned)disc->reason : 0U,
+                 (int)s_state.scanning, (int)s_want_connect);
         xSemaphoreTake(s_lock, portMAX_DELAY);
         s_state.connected = false;
         s_state.connecting = s_want_connect;
