@@ -57,6 +57,8 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         }
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
         if (s_want_connect) esp_wifi_connect();
+    } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_CONNECTED) {
+        ESP_LOGI(TAG, "STA associated; waiting for DHCP IPv4 address");
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
         const wifi_event_sta_disconnected_t *disc = (const wifi_event_sta_disconnected_t *)data;
         ESP_LOGW(TAG, "STA disconnected: reason=%u, scan=%d, reconnect=%d",
@@ -85,6 +87,8 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         } else if (!s_state.scanning && s_want_connect) {
             esp_wifi_connect();
         }
+    } else if (base == IP_EVENT && id == IP_EVENT_STA_LOST_IP) {
+        ESP_LOGW(TAG, "IPv4 address lost");
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *evt = (ip_event_got_ip_t *)data;
         xSemaphoreTake(s_lock, portMAX_DELAY);
