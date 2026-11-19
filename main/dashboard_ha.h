@@ -11,3 +11,15 @@ esp_err_t dashboard_ha_auth_test(void);
 bool dashboard_ha_has_token(void);
 esp_err_t dashboard_ha_web_start(void);
 void dashboard_ha_setup_code(char *out, unsigned capacity);
+#define DASH_HA_MAX_ENTITIES 8
+typedef struct {
+    char entity_id[80];
+    char state[64];
+} dashboard_ha_entity_t;
+typedef struct {
+    bool connected;
+    unsigned count;
+    dashboard_ha_entity_t entities[DASH_HA_MAX_ENTITIES];
+} dashboard_ha_snapshot_t;
+esp_err_t dashboard_ha_live_start(void);
+void dashboard_ha_live_snapshot(dashboard_ha_snapshot_t *out);
