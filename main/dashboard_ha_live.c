@@ -19,6 +19,8 @@ static char *s_message;
 static int s_received, s_expected;
 static bool s_started;
 
+static void panel_update_states(dashboard_ha_snapshot_t *panel);
+
 void dashboard_ha_live_snapshot(dashboard_ha_snapshot_t *out)
 {
     if (!out) return;
@@ -26,6 +28,7 @@ void dashboard_ha_live_snapshot(dashboard_ha_snapshot_t *out)
     if (!s_mutex) return;
     xSemaphoreTake(s_mutex,portMAX_DELAY);
     *out=s_snapshot;
+    panel_update_states(out);
     xSemaphoreGive(s_mutex);
 }
 
@@ -64,6 +67,76 @@ static void parse_state(cJSON *item)
         save_entity(id->valuestring,state->valuestring);
 }
 
+
+static void panel_add(cJSON *card, dashboard_ha_snapshot_t *panel)
+{
+    if (!cJSON_IsObject(card) || panel->panel_count >= DASH_HA_MAX_ENTITIES) return;
+    cJSON *type=cJSON_GetObjectItemCaseSensitive(card,"type");
+    cJSON *entity=cJSON_GetObjectItemCaseSensitive(card,"entity");
+    cJSON *title=cJSON_GetObjectItemCaseSensitive(card,"name");
+    if (!cJSON_IsString(title)) title=cJSON_GetObjectItemCaseSensitive(card,"title");
+    if (cJSON_IsString(type) && !strcmp(type->valuestring,"entities")) {
+        cJSON *items=cJSON_GetObjectItemCaseSensitive(card,"entities");
+        cJSON *entry=NULL;
+        cJSON_ArrayForEach(entry,items) {
+            if (panel->panel_count>=DASH_HA_MAX_ENTITIES) break;
+            cJSON *eid=cJSON_IsString(entry)?entry:cJSON_GetObjectItemCaseSensitive(entry,"entity");
+            cJSON *ename=cJSON_IsObject(entry)?cJSON_GetObjectItemCaseSensitive(entry,"name"):NULL;
+            if (!cJSON_IsString(eid)) continue;
+            dashboard_ha_entity_t *dst=&panel->panel_cards[panel->panel_count++];
+            snprintf(dst->entity_id,sizeof(dst->entity_id),"%s",eid->valuestring);
+            snprintf(dst->title,sizeof(dst->title),"%s",cJSON_IsString(ename)?ename->valuestring:eid->valuestring);
+        }
+    } else if (cJSON_IsString(type) && cJSON_IsString(entity) &&
+               (!strcmp(type->valuestring,"tile") || !strcmp(type->valuestring,"sensor") ||
+                !strcmp(type->valuestring,"button"))) {
+        dashboard_ha_entity_t *dst=&panel->panel_cards[panel->panel_count++];
+        snprintf(dst->entity_id,sizeof(dst->entity_id),"%s",entity->valuestring);
+        snprintf(dst->title,sizeof(dst->title),"%s",cJSON_IsString(title)?title->valuestring:entity->valuestring);
+    }
+}
+
+static void panel_collect(cJSON *node, dashboard_ha_snapshot_t *panel, int depth)
+{
+    if (depth>5 || panel->panel_count>=DASH_HA_MAX_ENTITIES || !cJSON_IsObject(node)) return;
+    cJSON *cards=cJSON_GetObjectItemCaseSensitive(node,"cards");
+    cJSON *item=NULL;
+    cJSON_ArrayForEach(item,cards) {
+        panel_add(item,panel);
+        panel_collect(item,panel,depth+1);
+    }
+    cJSON *sections=cJSON_GetObjectItemCaseSensitive(node,"sections");
+    cJSON_ArrayForEach(item,sections) panel_collect(item,panel,depth+1);
+}
+
+static void parse_panel_config(cJSON *config)
+{
+    if (!cJSON_IsObject(config)) return;
+    dashboard_ha_snapshot_t panel={0};
+    cJSON *views=cJSON_GetObjectItemCaseSensitive(config,"views");
+    cJSON *first=cJSON_GetArrayItem(views,0);
+    panel_collect(first,&panel,0);
+    xSemaphoreTake(s_mutex,portMAX_DELAY);
+    s_snapshot.panel_count=panel.panel_count;
+    memcpy(s_snapshot.panel_cards,panel.panel_cards,sizeof(panel.panel_cards));
+    s_snapshot.panel_loaded=true;
+    xSemaphoreGive(s_mutex);
+    ESP_LOGI(TAG,"DoorCam Panel config: %u supported entities",panel.panel_count);
+}
+
+static void panel_update_states(dashboard_ha_snapshot_t *panel)
+{
+    for (unsigned i=0;i<panel->panel_count;i++) {
+        dashboard_ha_entity_t *dst=&panel->panel_cards[i];
+        for (unsigned j=0;j<panel->count;j++) {
+            if (!strcmp(dst->entity_id,panel->entities[j].entity_id)) {
+                snprintf(dst->state,sizeof(dst->state),"%s",panel->entities[j].state);
+                break;
+            }
+        }
+    }
+}
+
 static void process_message(char *message)
 {
     cJSON *root=cJSON_Parse(message);
@@ -98,11 +171,17 @@ static void process_message(char *message)
         esp_websocket_client_send_text(s_ws,subscribe,strlen(subscribe),pdMS_TO_TICKS(1000));
         const char *get_states="{\"id\":2,\"type\":\"get_states\"}";
         esp_websocket_client_send_text(s_ws,get_states,strlen(get_states),pdMS_TO_TICKS(1000));
+        const char *get_panel="{\\"id\\":3,\\"type\\":\\"lovelace/config\\",\\"url_path\\":\\"doorcam-panel\\"}";
+        esp_websocket_client_send_text(s_ws,get_panel,strlen(get_panel),pdMS_TO_TICKS(1000));
     } else if (!strcmp(type->valuestring,"auth_invalid")) {
         ESP_LOGW(TAG,"Home Assistant WebSocket authentication rejected");
     } else if (!strcmp(type->valuestring,"result")) {
         cJSON *id=cJSON_GetObjectItemCaseSensitive(root,"id");
         cJSON *success=cJSON_GetObjectItemCaseSensitive(root,"success");
+        if (cJSON_IsNumber(id) && id->valueint==3) {
+            if (cJSON_IsTrue(success)) parse_panel_config(cJSON_GetObjectItemCaseSensitive(root,"result"));
+            else ESP_LOGW(TAG,"DoorCam Panel config unavailable (check dashboard URL path and permissions)");
+        }
         if (cJSON_IsNumber(id) && id->valueint==2 && cJSON_IsTrue(success)) {
             cJSON *states=cJSON_GetObjectItemCaseSensitive(root,"result");
             if (cJSON_IsArray(states)) {
