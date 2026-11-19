@@ -17,6 +17,7 @@ static bool s_ready;
 static bool s_want_connect;
 static bool s_scan_wait_disconnect;
 static bool s_resume_after_scan;
+static bool s_ignore_disconnect_for_new_config;
 
 static esp_err_t start_scan_now(void)
 {
@@ -67,7 +68,10 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         s_state.ip[0] = 0;
         set_status(s_want_connect ? "Reconnecting..." : "Disconnected");
         xSemaphoreGive(s_lock);
-        if (s_scan_wait_disconnect) {
+        if (s_ignore_disconnect_for_new_config) {
+            /* dash_wifi_connect() will start the new association itself. */
+            s_ignore_disconnect_for_new_config = false;
+        } else if (s_scan_wait_disconnect) {
             s_scan_wait_disconnect = false;
             esp_err_t scan_err = start_scan_now();
             if (scan_err != ESP_OK) {
@@ -171,8 +175,11 @@ esp_err_t dash_wifi_connect(const char *ssid, const char *password)
     cfg.sta.threshold.authmode = WIFI_AUTH_OPEN;
     cfg.sta.pmf_cfg.capable = true;
     cfg.sta.pmf_cfg.required = false;
+    /* Suppress reconnect from the disconnect event while replacing credentials. */
     s_want_connect = false;
-    esp_wifi_disconnect();
+    s_ignore_disconnect_for_new_config = true;
+    esp_err_t disconnect_err = esp_wifi_disconnect();
+    if (disconnect_err != ESP_OK) s_ignore_disconnect_for_new_config = false;
     esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &cfg);
     if (err != ESP_OK) return err;
     xSemaphoreTake(s_lock, portMAX_DELAY);
