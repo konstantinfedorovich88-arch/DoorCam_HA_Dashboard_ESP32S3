@@ -9,6 +9,7 @@
 #include "dashboard_board.h"
 #include "dashboard_ui.h"
 #include "dashboard_wifi.h"
+#include "dashboard_ha.h"
 
 static const char *TAG = "DASH_APP";
 #define DISPLAY_W 800
@@ -104,6 +105,10 @@ void app_main(void)
 {
     esp_err_t wifi_err = dash_wifi_init();
     if (wifi_err != ESP_OK) ESP_LOGE(TAG, "Wi-Fi init failed: %s", esp_err_to_name(wifi_err));
+    if (wifi_err == ESP_OK) {
+        esp_err_t web_err = dashboard_ha_web_start();
+        if (web_err != ESP_OK) ESP_LOGE(TAG, "HA web setup failed: %s", esp_err_to_name(web_err));
+    }
     BaseType_t ok = xTaskCreatePinnedToCore(dashboard_lvgl_task, "dashboard_lvgl",
                                             16384, NULL, 7, NULL, 1);
     if (ok != pdPASS) ESP_LOGE(TAG, "Failed to create LVGL task");
