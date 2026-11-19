@@ -15,10 +15,14 @@ void dashboard_ha_setup_code(char *out, unsigned capacity);
 typedef struct {
     char entity_id[80];
     char state[64];
+    char title[64];
 } dashboard_ha_entity_t;
 typedef struct {
     bool connected;
     unsigned count;
+    bool panel_loaded;
+    unsigned panel_count;
+    dashboard_ha_entity_t panel_cards[DASH_HA_MAX_ENTITIES];
     dashboard_ha_entity_t entities[DASH_HA_MAX_ENTITIES];
 } dashboard_ha_snapshot_t;
 esp_err_t dashboard_ha_live_start(void);
