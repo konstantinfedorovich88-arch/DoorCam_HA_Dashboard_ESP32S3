@@ -168,10 +168,14 @@ static void process_message(char *message)
         cJSON *id=cJSON_GetObjectItemCaseSensitive(root,"id");
         cJSON *success=cJSON_GetObjectItemCaseSensitive(root,"success");
         if (cJSON_IsNumber(id) && id->valueint==3) {
-            if (cJSON_IsTrue(success)) parse_panel_config(cJSON_GetObjectItemCaseSensitive(root,"result"));
+            if (cJSON_IsTrue(success)) {
+                parse_panel_config(cJSON_GetObjectItemCaseSensitive(root,"result"));
+                const char *refresh="{\"id\":4,\"type\":\"get_states\"}";
+                esp_websocket_client_send_text(s_ws,refresh,strlen(refresh),pdMS_TO_TICKS(1000));
+            }
             else ESP_LOGW(TAG,"DoorCam Panel config unavailable (check dashboard URL path and permissions)");
         }
-        if (cJSON_IsNumber(id) && id->valueint==2 && cJSON_IsTrue(success)) {
+        if (cJSON_IsNumber(id) && (id->valueint==2 || id->valueint==4) && cJSON_IsTrue(success)) {
             cJSON *states=cJSON_GetObjectItemCaseSensitive(root,"result");
             if (cJSON_IsArray(states)) {
                 cJSON *item=NULL;
