@@ -19,8 +19,6 @@ static char *s_message;
 static int s_received, s_expected;
 static bool s_started;
 
-static void panel_update_states(dashboard_ha_snapshot_t *panel);
-
 void dashboard_ha_live_snapshot(dashboard_ha_snapshot_t *out)
 {
     if (!out) return;
@@ -28,7 +26,6 @@ void dashboard_ha_live_snapshot(dashboard_ha_snapshot_t *out)
     if (!s_mutex) return;
     xSemaphoreTake(s_mutex,portMAX_DELAY);
     *out=s_snapshot;
-    panel_update_states(out);
     xSemaphoreGive(s_mutex);
 }
 
@@ -127,19 +124,6 @@ static void parse_panel_config(cJSON *config)
     s_snapshot.panel_loaded=true;
     xSemaphoreGive(s_mutex);
     ESP_LOGI(TAG,"DoorCam Panel config: %u supported entities",panel.panel_count);
-}
-
-static void panel_update_states(dashboard_ha_snapshot_t *panel)
-{
-    for (unsigned i=0;i<panel->panel_count;i++) {
-        dashboard_ha_entity_t *dst=&panel->panel_cards[i];
-        for (unsigned j=0;j<panel->count;j++) {
-            if (!strcmp(dst->entity_id,panel->entities[j].entity_id)) {
-                snprintf(dst->state,sizeof(dst->state),"%s",panel->entities[j].state);
-                break;
-            }
-        }
-    }
 }
 
 static void process_message(char *message)
