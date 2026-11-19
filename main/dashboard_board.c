@@ -50,7 +50,7 @@ esp_err_t dashboard_board_init(void)
     const esp_lcd_rgb_panel_config_t cfg = {
         .clk_src = LCD_CLK_SRC_DEFAULT,
         .timings = {
-            .pclk_hz = 16000000,
+            .pclk_hz = 12000000,
             .h_res = LCD_W, .v_res = LCD_H,
             .hsync_pulse_width = 4, .hsync_back_porch = 8, .hsync_front_porch = 8,
             .vsync_pulse_width = 4, .vsync_back_porch = 16, .vsync_front_porch = 16,
@@ -58,7 +58,7 @@ esp_err_t dashboard_board_init(void)
         },
         .data_width = 16,
         .num_fbs = 1,
-        /* Larger DMA bounce buffers reduce RGB underflow when Wi-Fi uses PSRAM. */
+        /* Reduce RGB DMA pressure on PSRAM during Wi-Fi and UI redraws. */
         .bounce_buffer_size_px = LCD_W * 20,
         .hsync_gpio_num = 46, .vsync_gpio_num = 3,
         .de_gpio_num = 5, .pclk_gpio_num = 7,
