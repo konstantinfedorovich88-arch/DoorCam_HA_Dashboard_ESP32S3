@@ -330,7 +330,7 @@ static void cards_open_cb(lv_event_t *event)
         lv_obj_set_size(card,170,140);
         lv_obj_set_pos(card,12+(int)(i%4)*180,65+(int)(i/4)*150);
         s_card_labels[i]=lv_label_create(card);
-        lv_label_set_long_mode(s_card_labels[i],LV_LABEL_LONG_DOT);
+        lv_label_set_long_mode(s_card_labels[i],LV_LABEL_LONG_WRAP);
         lv_obj_set_width(s_card_labels[i],140);
         lv_label_set_text(s_card_labels[i],"Waiting for device...");
         lv_obj_center(s_card_labels[i]);
@@ -354,12 +354,28 @@ static void close_overlay(void)
     }
 }
 
+static void on_hangup(lv_event_t *event);
+
 static void on_accept(lv_event_t *event)
 {
     (void)event;
     if (!dash_call_accept(&s_call, s_call.session_id)) return;
     close_overlay();
-    lv_label_set_text(s_status, "DoorCam: call active (UI demo; audio not connected)");
+    s_overlay=lv_obj_create(lv_screen_active());
+    lv_obj_set_size(s_overlay,500,260);
+    lv_obj_center(s_overlay);
+    add_label(s_overlay,"DOORCAM - CALL ACTIVE",80,35);
+    add_label(s_overlay,"Video / audio hardware not connected",45,85);
+    make_button(s_overlay,"Hang up",175,155,on_hangup);
+    lv_label_set_text(s_status, "DoorCam: demo call active");
+}
+
+static void on_hangup(lv_event_t *event)
+{
+    (void)event;
+    if (!dash_call_hangup(&s_call, s_call.session_id)) return;
+    close_overlay();
+    lv_label_set_text(s_status, "DoorCam: demo call ended");
 }
 
 static void on_reject(lv_event_t *event)
