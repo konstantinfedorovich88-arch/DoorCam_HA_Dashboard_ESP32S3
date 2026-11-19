@@ -5,6 +5,9 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include "nvs.h"
+#include "esp_http_client.h"
+#include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
@@ -16,6 +19,9 @@ static char s_status[100] = "Not tested";
 static char s_host[64];
 static unsigned s_port;
 static bool s_busy;
+#define HA_TOKEN_MAX 512
+#define HA_NVS_NS "doorcam_ha"
+#define HA_NVS_KEY "token"
 
 static void set_status(const char *message)
 {
@@ -90,6 +96,107 @@ esp_err_t dashboard_ha_probe(const char *host, unsigned port)
     snprintf(s_status, sizeof(s_status), "Checking HA connection...");
     xSemaphoreGive(s_lock);
     if (xTaskCreate(probe_task, "ha_probe", 4096, NULL, 3, NULL) != pdPASS) {
+        xSemaphoreTake(s_lock, portMAX_DELAY);
+        s_busy = false;
+        xSemaphoreGive(s_lock);
+        return ESP_ERR_NO_MEM;
+    }
+    return ESP_OK;
+}
+
+/* Token is stored in NVS, not source control. Enable NVS encryption for
+ * protection against physical flash extraction before production deployment. */
+bool dashboard_ha_has_token(void)
+{
+    nvs_handle_t handle;
+    if (nvs_open(HA_NVS_NS, NVS_READONLY, &handle) != ESP_OK) return false;
+    size_t size = 0;
+    esp_err_t err = nvs_get_str(handle, HA_NVS_KEY, NULL, &size);
+    nvs_close(handle);
+    return err == ESP_OK && size > 1 && size <= HA_TOKEN_MAX;
+}
+
+esp_err_t dashboard_ha_save_token(const char *token)
+{
+    if (!token) return ESP_ERR_INVALID_ARG;
+    size_t len = strlen(token);
+    if (len < 20 || len >= HA_TOKEN_MAX) return ESP_ERR_INVALID_ARG;
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(HA_NVS_NS, NVS_READWRITE, &handle);
+    if (err != ESP_OK) return err;
+    err = nvs_set_str(handle, HA_NVS_KEY, token);
+    if (err == ESP_OK) err = nvs_commit(handle);
+    nvs_close(handle);
+    if (err == ESP_OK) set_status("Token saved; tap Test auth");
+    return err;
+}
+
+static void auth_task(void *arg)
+{
+    (void)arg;
+    char *token = calloc(HA_TOKEN_MAX, 1);
+    if (!token) { set_status("Out of memory"); goto done; }
+    nvs_handle_t handle;
+    if (nvs_open(HA_NVS_NS, NVS_READONLY, &handle) != ESP_OK) {
+        set_status("No token saved"); free(token); goto done;
+    }
+    size_t len = HA_TOKEN_MAX;
+    esp_err_t err = nvs_get_str(handle, HA_NVS_KEY, token, &len);
+    nvs_close(handle);
+    if (err != ESP_OK) { set_status("Cannot read token"); free(token); goto done; }
+
+    esp_http_client_config_t cfg = {
+        .url = "http://192.168.0.215:8123/api/",
+        .timeout_ms = 5000,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if (!client) { set_status("HTTP client initialization failed"); free(token); goto done; }
+    char *header = malloc(strlen(token) + 8);
+    if (!header) {
+        set_status("Out of memory");
+    } else {
+        snprintf(header, strlen(token) + 8, "Bearer %s", token);
+        esp_http_client_set_header(client, "Authorization", header);
+        esp_http_client_set_header(client, "Accept", "application/json");
+        err = esp_http_client_perform(client);
+        if (err == ESP_OK) {
+            int code = esp_http_client_get_status_code(client);
+            if (code == 200) set_status("HA authenticated (HTTP 200)");
+            else if (code == 401 || code == 403) set_status("HA rejected token (401/403)");
+            else {
+                char status[80];
+                snprintf(status, sizeof(status), "HA HTTP response: %d", code);
+                set_status(status);
+            }
+            ESP_LOGI(TAG, "HA authentication HTTP status: %d", code);
+        } else {
+            set_status("HA auth request failed; check Wi-Fi");
+            ESP_LOGW(TAG, "HA auth request: %s", esp_err_to_name(err));
+        }
+        memset(header, 0, strlen(token) + 8);
+        free(header);
+    }
+    esp_http_client_cleanup(client);
+    memset(token, 0, HA_TOKEN_MAX);
+    free(token);
+done:
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_busy = false;
+    xSemaphoreGive(s_lock);
+    vTaskDelete(NULL);
+}
+
+esp_err_t dashboard_ha_auth_test(void)
+{
+    esp_err_t err = dashboard_ha_start();
+    if (err != ESP_OK) return err;
+    if (!dashboard_ha_has_token()) return ESP_ERR_NOT_FOUND;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (s_busy) { xSemaphoreGive(s_lock); return ESP_ERR_INVALID_STATE; }
+    s_busy = true;
+    snprintf(s_status, sizeof(s_status), "Checking HA token...");
+    xSemaphoreGive(s_lock);
+    if (xTaskCreate(auth_task, "ha_auth", 6144, NULL, 3, NULL) != pdPASS) {
         xSemaphoreTake(s_lock, portMAX_DELAY);
         s_busy = false;
         xSemaphoreGive(s_lock);
