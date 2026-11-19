@@ -42,13 +42,16 @@ static void save_entity(const char *id, const char *state)
     if (index==s_snapshot.count) {
         if (s_snapshot.count<DASH_HA_MAX_ENTITIES) s_snapshot.count++;
         else {
-            memmove(&s_snapshot.entities[0],&s_snapshot.entities[1],
-                    sizeof(s_snapshot.entities[0])*(DASH_HA_MAX_ENTITIES-1));
-            index=DASH_HA_MAX_ENTITIES-1;
+            /* Keep the initial eight cards stable. Never rotate the whole
+             * grid when HA reports another entity or a state changes. */
+            xSemaphoreGive(s_mutex);
+            return;
         }
     }
-    snprintf(s_snapshot.entities[index].entity_id,sizeof(s_snapshot.entities[index].entity_id),"%s",id);
-    snprintf(s_snapshot.entities[index].state,sizeof(s_snapshot.entities[index].state),"%s",state);
+    if (strcmp(s_snapshot.entities[index].entity_id,id) != 0)
+        snprintf(s_snapshot.entities[index].entity_id,sizeof(s_snapshot.entities[index].entity_id),"%s",id);
+    if (strcmp(s_snapshot.entities[index].state,state) != 0)
+        snprintf(s_snapshot.entities[index].state,sizeof(s_snapshot.entities[index].state),"%s",state);
     xSemaphoreGive(s_mutex);
 }
 
@@ -155,6 +158,7 @@ esp_err_t dashboard_ha_live_start(void)
         .uri="ws://192.168.0.215:8123/api/websocket",
         .buffer_size=2048,
         .reconnect_timeout_ms=5000,
+        .network_timeout_ms=10000,
         .task_stack=8192,
     };
     s_ws=esp_websocket_client_init(&cfg);
