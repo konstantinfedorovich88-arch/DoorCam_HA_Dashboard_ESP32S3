@@ -13,7 +13,7 @@
 static const char *TAG = "DASH_APP";
 #define DISPLAY_W 800
 #define DISPLAY_H 480
-#define DRAW_LINES 20
+#define DRAW_LINES 10
 
 static uint32_t lv_tick_ms(void)
 {
@@ -66,8 +66,9 @@ static void dashboard_lvgl_task(void *arg)
     }
     lv_display_set_color_format(display, LV_COLOR_FORMAT_RGB565);
     const size_t bytes = DISPLAY_W * DRAW_LINES * 2;
-    void *buf1 = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    void *buf2 = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    /* Keep LVGL rendering out of PSRAM to avoid starving RGB DMA during Wi-Fi scans. */
+    void *buf1 = heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    void *buf2 = heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     if (!buf1 || !buf2) {
         ESP_LOGE(TAG, "LVGL draw buffer allocation failed");
         return;
@@ -99,6 +100,6 @@ void app_main(void)
     esp_err_t wifi_err = dash_wifi_init();
     if (wifi_err != ESP_OK) ESP_LOGE(TAG, "Wi-Fi init failed: %s", esp_err_to_name(wifi_err));
     BaseType_t ok = xTaskCreatePinnedToCore(dashboard_lvgl_task, "dashboard_lvgl",
-                                            16384, NULL, 5, NULL, 1);
+                                            16384, NULL, 7, NULL, 1);
     if (ok != pdPASS) ESP_LOGE(TAG, "Failed to create LVGL task");
 }
