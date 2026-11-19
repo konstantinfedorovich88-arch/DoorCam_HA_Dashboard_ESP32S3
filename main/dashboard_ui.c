@@ -124,7 +124,7 @@ static void wifi_open_cb(lv_event_t *event)
 }
 
 
-static lv_obj_t *s_ha_panel, *s_ha_status;
+static lv_obj_t *s_ha_panel, *s_ha_status, *s_ha_token, *s_ha_keyboard;
 static lv_timer_t *s_ha_timer;
 
 static void ha_refresh(lv_timer_t *timer)
@@ -144,6 +144,8 @@ static void ha_close_cb(lv_event_t *event)
     lv_obj_delete(s_ha_panel);
     s_ha_panel = NULL;
     s_ha_status = NULL;
+    s_ha_token = NULL;
+    s_ha_keyboard = NULL;
 }
 
 static void ha_test_cb(lv_event_t *event)
@@ -160,27 +162,87 @@ static void ha_test_cb(lv_event_t *event)
     else ha_refresh(NULL);
 }
 
+static void ha_token_focus_cb(lv_event_t *event)
+{
+    (void)event;
+    if (s_ha_keyboard) lv_obj_set_hidden(s_ha_keyboard, false);
+}
+
+static void ha_keyboard_done_cb(lv_event_t *event)
+{
+    (void)event;
+    if (s_ha_keyboard) lv_obj_set_hidden(s_ha_keyboard, true);
+}
+
+static void ha_save_cb(lv_event_t *event)
+{
+    (void)event;
+    const char *token = lv_textarea_get_text(s_ha_token);
+    esp_err_t err = dashboard_ha_save_token(token);
+    if (err == ESP_OK) {
+        lv_textarea_set_text(s_ha_token, "");
+        lv_obj_set_hidden(s_ha_keyboard, true);
+        ha_refresh(NULL);
+    } else {
+        lv_label_set_text(s_ha_status, "Invalid token or NVS save failed");
+    }
+}
+
+static void ha_auth_cb(lv_event_t *event)
+{
+    (void)event;
+    dash_wifi_snapshot_t snap;
+    dash_wifi_snapshot(&snap);
+    if (!snap.connected) {
+        lv_label_set_text(s_ha_status, "Connect Wi-Fi first");
+        return;
+    }
+    esp_err_t err = dashboard_ha_auth_test();
+    if (err != ESP_OK)
+        lv_label_set_text(s_ha_status, "Save a token first or wait for test");
+    else ha_refresh(NULL);
+}
+
 static void ha_open_cb(lv_event_t *event)
 {
     (void)event;
     if (s_ha_panel) return;
     s_ha_panel = lv_obj_create(lv_screen_active());
-    lv_obj_set_size(s_ha_panel, 680, 290);
+    lv_obj_set_size(s_ha_panel, 740, 430);
     lv_obj_center(s_ha_panel);
     lv_obj_t *title = lv_label_create(s_ha_panel);
     lv_label_set_text(title, "Home Assistant connection");
-    lv_obj_set_pos(title, 20, 12);
+    lv_obj_set_pos(title, 16, 6);
     lv_obj_t *address = lv_label_create(s_ha_panel);
     lv_label_set_text(address, "Server: http://192.168.0.215:8123");
-    lv_obj_set_pos(address, 20, 62);
+    lv_obj_set_pos(address, 16, 38);
     s_ha_status = lv_label_create(s_ha_panel);
     lv_label_set_long_mode(s_ha_status, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(s_ha_status, 620);
-    lv_obj_set_pos(s_ha_status, 20, 110);
-    make_button(s_ha_panel, "Test server", 20, 175, ha_test_cb);
-    make_button(s_ha_panel, "Close", 465, 175, ha_close_cb);
+    lv_obj_set_width(s_ha_status, 680);
+    lv_obj_set_pos(s_ha_status, 16, 72);
+    s_ha_token = lv_textarea_create(s_ha_panel);
+    lv_obj_set_pos(s_ha_token, 16, 112);
+    lv_obj_set_size(s_ha_token, 670, 42);
+    lv_textarea_set_one_line(s_ha_token, true);
+    lv_textarea_set_password_mode(s_ha_token, true);
+    lv_textarea_set_max_length(s_ha_token, 511);
+    lv_textarea_set_placeholder_text(s_ha_token, "Paste Long-Lived Access Token");
+    lv_obj_add_event_cb(s_ha_token, ha_token_focus_cb, LV_EVENT_FOCUSED, NULL);
+    make_button(s_ha_panel, "Save token", 16, 165, ha_save_cb);
+    make_button(s_ha_panel, "Test auth", 185, 165, ha_auth_cb);
+    make_button(s_ha_panel, "Test server", 354, 165, ha_test_cb);
+    make_button(s_ha_panel, "Close", 525, 165, ha_close_cb);
+    s_ha_keyboard = lv_keyboard_create(s_ha_panel);
+    lv_obj_set_size(s_ha_keyboard, 690, 195);
+    lv_obj_align(s_ha_keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_keyboard_set_textarea(s_ha_keyboard, s_ha_token);
+    lv_obj_add_event_cb(s_ha_keyboard, ha_keyboard_done_cb, LV_EVENT_READY, NULL);
+    lv_obj_add_event_cb(s_ha_keyboard, ha_keyboard_done_cb, LV_EVENT_CANCEL, NULL);
+    lv_obj_set_hidden(s_ha_keyboard, true);
     s_ha_timer = lv_timer_create(ha_refresh, 800, NULL);
     ha_refresh(NULL);
+    if (dashboard_ha_has_token())
+        lv_textarea_set_placeholder_text(s_ha_token, "Token saved; enter only to replace");
 }
 
 static void add_label(lv_obj_t *parent, const char *text, int x, int y)
