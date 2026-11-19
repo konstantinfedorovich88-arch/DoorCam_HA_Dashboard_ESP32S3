@@ -281,6 +281,64 @@ static void ha_open_cb(lv_event_t *event)
         lv_textarea_set_placeholder_text(s_ha_token, "Token saved; enter only to replace");
 }
 
+/* Lightweight entity cards: LVGL is accessed only from the UI task. */
+static lv_obj_t *s_cards_panel;
+static lv_obj_t *s_card_labels[DASH_HA_MAX_ENTITIES];
+static lv_timer_t *s_cards_timer;
+
+static void cards_refresh(lv_timer_t *timer)
+{
+    (void)timer;
+    if (!s_cards_panel) return;
+    dashboard_ha_snapshot_t snap;
+    dashboard_ha_live_snapshot(&snap);
+    for (unsigned i=0; i<DASH_HA_MAX_ENTITIES; i++) {
+        if (!s_card_labels[i]) continue;
+        char line[160];
+        if (i < snap.count)
+            snprintf(line,sizeof(line),"%s\\n%s",snap.entities[i].entity_id,
+                     snap.entities[i].state);
+        else
+            snprintf(line,sizeof(line),"Waiting for device...");
+        if (strcmp(lv_label_get_text(s_card_labels[i]),line)!=0)
+            lv_label_set_text(s_card_labels[i],line);
+    }
+}
+
+static void cards_close_cb(lv_event_t *event)
+{
+    (void)event;
+    if (s_cards_timer) { lv_timer_delete(s_cards_timer); s_cards_timer=NULL; }
+    if (s_cards_panel) { lv_obj_delete(s_cards_panel); s_cards_panel=NULL; }
+    memset(s_card_labels,0,sizeof(s_card_labels));
+}
+
+static void cards_open_cb(lv_event_t *event)
+{
+    (void)event;
+    if (s_cards_panel) return;
+    (void)dashboard_ha_live_start();
+    s_cards_panel=lv_obj_create(lv_screen_active());
+    lv_obj_set_size(s_cards_panel,760,435);
+    lv_obj_center(s_cards_panel);
+    lv_obj_t *title=lv_label_create(s_cards_panel);
+    lv_label_set_text(title,"Home Assistant - devices (read only)");
+    lv_obj_set_pos(title,14,10);
+    make_button(s_cards_panel,"Close",570,2,cards_close_cb);
+    for (unsigned i=0;i<DASH_HA_MAX_ENTITIES;i++) {
+        lv_obj_t *card=lv_obj_create(s_cards_panel);
+        lv_obj_set_size(card,170,140);
+        lv_obj_set_pos(card,12+(int)(i%4)*180,65+(int)(i/4)*150);
+        s_card_labels[i]=lv_label_create(card);
+        lv_label_set_long_mode(s_card_labels[i],LV_LABEL_LONG_DOT);
+        lv_obj_set_width(s_card_labels[i],140);
+        lv_label_set_text(s_card_labels[i],"Waiting for device...");
+        lv_obj_center(s_card_labels[i]);
+    }
+    s_cards_timer=lv_timer_create(cards_refresh,700,NULL);
+    cards_refresh(NULL);
+}
+
 static void add_label(lv_obj_t *parent, const char *text, int x, int y)
 {
     lv_obj_t *label = lv_label_create(parent);
@@ -357,5 +415,6 @@ void dashboard_ui_create(void)
     make_button(root, "Test call UI", 28, 330, on_demo_ring);
     make_button(root, "Wi-Fi", 200, 330, wifi_open_cb);
     make_button(root, "Home Assistant", 372, 330, ha_open_cb);
+    make_button(root, "Devices", 544, 330, cards_open_cb);
     lv_timer_create(wifi_refresh, 700, NULL);
 }
