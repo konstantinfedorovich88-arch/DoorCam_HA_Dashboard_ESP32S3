@@ -160,7 +160,7 @@ static void process_message(char *message)
         esp_websocket_client_send_text(s_ws,subscribe,strlen(subscribe),pdMS_TO_TICKS(1000));
         const char *get_states="{\"id\":2,\"type\":\"get_states\"}";
         esp_websocket_client_send_text(s_ws,get_states,strlen(get_states),pdMS_TO_TICKS(1000));
-        const char *get_panel="{\\"id\\":3,\\"type\\":\\"lovelace/config\\",\\"url_path\\":\\"doorcam-panel\\"}";
+        const char *get_panel="{\"id\":3,\"type\":\"lovelace/config\",\"url_path\":\"doorcam-panel\"}";
         esp_websocket_client_send_text(s_ws,get_panel,strlen(get_panel),pdMS_TO_TICKS(1000));
     } else if (!strcmp(type->valuestring,"auth_invalid")) {
         ESP_LOGW(TAG,"Home Assistant WebSocket authentication rejected");
