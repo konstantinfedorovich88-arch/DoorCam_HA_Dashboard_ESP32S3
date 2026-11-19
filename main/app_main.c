@@ -89,8 +89,9 @@ static void dashboard_lvgl_task(void *arg)
 
     while (true) {
         uint32_t wait_ms = lv_timer_handler();
-        if (wait_ms < 5) wait_ms = 5;
-        if (wait_ms > 15) wait_ms = 15;
+        /* Keep touch and keyboard latency low without busy-spinning LVGL. */
+        if (wait_ms < 3) wait_ms = 3;
+        if (wait_ms > 10) wait_ms = 10;
         vTaskDelay(pdMS_TO_TICKS(wait_ms));
     }
 }
