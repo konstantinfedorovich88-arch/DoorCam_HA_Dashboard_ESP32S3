@@ -2,6 +2,7 @@
 #include "dashboard_call.h"
 #include "dashboard_wifi.h"
 #include <stdio.h>
+#include <string.h>
 #include "esp_log.h"
 
 static const char *TAG = "DASH_UI";
@@ -23,7 +24,10 @@ static void wifi_refresh(lv_timer_t *timer)
     char status[140];
     snprintf(status, sizeof(status), "Wi-Fi: %s%s%s", snap.status,
              snap.ip[0] ? " IP: " : "", snap.ip);
-    lv_label_set_text(s_wifi_status, status);
+    /* Avoid invalidating the UI every 700 ms when status is unchanged. */
+    if (strcmp(lv_label_get_text(s_wifi_status), status) != 0) {
+        lv_label_set_text(s_wifi_status, status);
+    }
     if (snap.generation != s_wifi_generation) {
         s_wifi_generation = snap.generation;
         s_wifi_count = snap.count;
