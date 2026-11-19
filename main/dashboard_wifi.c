@@ -18,6 +18,7 @@ static bool s_want_connect;
 static bool s_scan_wait_disconnect;
 static bool s_resume_after_scan;
 static bool s_ignore_disconnect_for_new_config;
+static esp_netif_t *s_sta_netif;
 
 static esp_err_t start_scan_now(void)
 {
@@ -59,6 +60,12 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         if (s_want_connect) esp_wifi_connect();
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_CONNECTED) {
         ESP_LOGI(TAG, "STA associated; waiting for DHCP IPv4 address");
+        if (s_sta_netif) {
+            esp_netif_dhcp_status_t dhcp_status = ESP_NETIF_DHCP_INIT;
+            esp_err_t dhcp_err = esp_netif_dhcpc_get_status(s_sta_netif, &dhcp_status);
+            ESP_LOGI(TAG, "DHCP client status: err=%s, status=%d",
+                     esp_err_to_name(dhcp_err), (int)dhcp_status);
+        }
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
         const wifi_event_sta_disconnected_t *disc = (const wifi_event_sta_disconnected_t *)data;
         ESP_LOGW(TAG, "STA disconnected: reason=%u, scan=%d, reconnect=%d",
@@ -117,7 +124,9 @@ esp_err_t dash_wifi_init(void)
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
     err = esp_event_loop_create_default();
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
-    esp_netif_create_default_wifi_sta();
+    s_sta_netif = esp_netif_create_default_wifi_sta();
+    if (!s_sta_netif) return ESP_FAIL;
+    ESP_LOGI(TAG, "Default Wi-Fi STA netif created, DHCP client enabled by default");
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     if ((err = esp_wifi_init(&cfg)) != ESP_OK) return err;
     if ((err = esp_wifi_set_storage(WIFI_STORAGE_FLASH)) != ESP_OK) return err;
