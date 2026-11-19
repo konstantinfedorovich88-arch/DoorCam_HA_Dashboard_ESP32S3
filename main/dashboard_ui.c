@@ -296,7 +296,7 @@ static void cards_refresh(lv_timer_t *timer)
         if (!s_card_labels[i]) continue;
         lv_obj_t *card=lv_obj_get_parent(s_card_labels[i]);
         bool visible=snap.panel_loaded ? (i<snap.panel_count) : (i<snap.count);
-        if (lv_obj_has_flag(card,LV_OBJ_FLAG_HIDDEN)==visible)
+        if (lv_obj_is_hidden(card)==visible)
             lv_obj_set_hidden(card,!visible);
         if (!visible) continue;
         const dashboard_ha_entity_t *entity=snap.panel_loaded ?
