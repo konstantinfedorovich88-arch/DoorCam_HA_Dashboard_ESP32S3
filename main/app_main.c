@@ -13,7 +13,7 @@
 static const char *TAG = "DASH_APP";
 #define DISPLAY_W 800
 #define DISPLAY_H 480
-#define DRAW_LINES 10
+#define DRAW_LINES 16
 
 static uint32_t lv_tick_ms(void)
 {
@@ -90,7 +90,7 @@ static void dashboard_lvgl_task(void *arg)
     while (true) {
         uint32_t wait_ms = lv_timer_handler();
         if (wait_ms < 5) wait_ms = 5;
-        if (wait_ms > 30) wait_ms = 30;
+        if (wait_ms > 15) wait_ms = 15;
         vTaskDelay(pdMS_TO_TICKS(wait_ms));
     }
 }
