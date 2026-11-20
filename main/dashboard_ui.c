@@ -307,7 +307,7 @@ static void cards_refresh(lv_timer_t *timer)
                  entity->state[0]?entity->state:"Loading...");
         bool active=!strcmp(entity->state,"on") || !strcmp(entity->state,"home") || !strcmp(entity->state,"open");
         lv_color_t bg=lv_color_hex(active?0x173B30:0x202A38);
-        if (lv_obj_get_style_bg_color(card,LV_PART_MAIN).full != bg.full)
+        if (!lv_color_eq(lv_obj_get_style_bg_color(card,LV_PART_MAIN),bg))
             lv_obj_set_style_bg_color(card,bg,LV_PART_MAIN);
         if (strcmp(lv_label_get_text(s_card_labels[i]),line)!=0)
             lv_label_set_text(s_card_labels[i],line);
