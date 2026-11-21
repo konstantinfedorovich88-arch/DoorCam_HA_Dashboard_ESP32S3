@@ -34,7 +34,9 @@ lv_obj_t *tick_value_change_obj;
 #define HOME_VALUE_FONT (&ui_font_roboto)
 #endif
 
-#if LV_FONT_MONTSERRAT_22
+#if LV_FONT_MONTSERRAT_48
+#define HOME_CLOCK_FONT (&lv_font_montserrat_48)
+#elif LV_FONT_MONTSERRAT_22
 #define HOME_CLOCK_FONT (&lv_font_montserrat_22)
 #else
 #define HOME_CLOCK_FONT HOME_VALUE_FONT
@@ -115,6 +117,10 @@ void create_screen_door_cam() {
         home_label(clock, "Дата и время", 16, 8, &ui_font_roboto, 0xb9cbe0);
         home_clock_time = home_label(clock, "--:--", 16, 32, HOME_CLOCK_FONT, 0x4ade80);
         home_clock_date = home_label(clock, "--.--.----", 16, 100, &ui_font_roboto, 0xb9cbe0);
+        lv_obj_align(home_clock_time, LV_ALIGN_CENTER, 0, -4);
+        lv_obj_align(home_clock_date, LV_ALIGN_BOTTOM_MID, 0, -10);
+        lv_obj_set_style_text_align(home_clock_time, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_align(home_clock_date, LV_TEXT_ALIGN_CENTER, 0);
         home_pending_button(parent_obj, 20, 348, LV_SYMBOL_POWER, "Мастер-выключатель");
         home_pending_button(parent_obj, 408, 348, LV_SYMBOL_VIDEO, "Просмотр камеры");
         home_label(parent_obj, "Home Assistant: --     Wi-Fi: --", 16, 447, &ui_font_roboto, 0xb9cbe0);
