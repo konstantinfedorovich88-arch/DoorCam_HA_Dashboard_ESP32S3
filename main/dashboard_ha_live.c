@@ -18,6 +18,16 @@ static dashboard_ha_snapshot_t s_snapshot;
 static char *s_message;
 static int s_received, s_expected;
 static bool s_started;
+static bool s_person_detected;
+
+bool dashboard_ha_person_detected(void)
+{
+    if (!s_mutex) return false;
+    xSemaphoreTake(s_mutex,portMAX_DELAY);
+    bool detected=s_snapshot.connected && s_person_detected;
+    xSemaphoreGive(s_mutex);
+    return detected;
+}
 
 void dashboard_ha_live_snapshot(dashboard_ha_snapshot_t *out)
 {
@@ -36,6 +46,12 @@ static void save_entity(const char *id, const char *state, const char *friendly,
         strncmp(id,"sensor.",7) && strncmp(id,"binary_sensor.",14) &&
         strncmp(id,"climate.",8)) return;
     xSemaphoreTake(s_mutex,portMAX_DELAY);
+    if (!strcmp(id,"binary_sensor.doorcam_chelovek")) {
+        bool detected=!strcmp(state,"on");
+        if (detected!=s_person_detected)
+            ESP_LOGI(TAG,"DoorCam person: %s",state);
+        s_person_detected=detected;
+    }
     for (unsigned k=0;k<s_snapshot.panel_count;k++) {
         dashboard_ha_entity_t *card=&s_snapshot.panel_cards[k];
         if (!strcmp(card->entity_id,id)) {
@@ -206,7 +222,12 @@ static void process_message(char *message)
     } else if (!strcmp(type->valuestring,"event")) {
         cJSON *event=cJSON_GetObjectItemCaseSensitive(root,"event");
         cJSON *data=cJSON_GetObjectItemCaseSensitive(event,"data");
-        parse_state(cJSON_GetObjectItemCaseSensitive(data,"new_state"));
+        cJSON *next=cJSON_GetObjectItemCaseSensitive(data,"new_state");
+        cJSON *eid=cJSON_GetObjectItemCaseSensitive(data,"entity_id");
+        if (cJSON_IsNull(next) && cJSON_IsString(eid) &&
+            !strcmp(eid->valuestring,"binary_sensor.doorcam_chelovek"))
+            save_entity(eid->valuestring,"unavailable",NULL,NULL);
+        else parse_state(next);
     }
     cJSON_Delete(root);
 }
@@ -218,6 +239,7 @@ static void ws_event(void *arg, esp_event_base_t base, int32_t event_id, void *e
     if (event_id==WEBSOCKET_EVENT_DISCONNECTED || event_id==WEBSOCKET_EVENT_ERROR) {
         xSemaphoreTake(s_mutex,portMAX_DELAY);
         s_snapshot.connected=false;
+        s_person_detected=false;
         xSemaphoreGive(s_mutex);
     } else if (event_id==WEBSOCKET_EVENT_DATA && e && e->op_code==0x1) {
         /* Reassemble text frames, including fragmented TCP/WebSocket delivery. */
