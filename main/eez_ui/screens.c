@@ -22,60 +22,69 @@ lv_obj_t *tick_value_change_obj;
 // Screens
 //
 
+#if LV_FONT_MONTSERRAT_40
+#define HOME_VALUE_FONT (&lv_font_montserrat_40)
+#elif LV_FONT_MONTSERRAT_28
+#define HOME_VALUE_FONT (&lv_font_montserrat_28)
+#elif LV_FONT_MONTSERRAT_24
+#define HOME_VALUE_FONT (&lv_font_montserrat_24)
+#else
+#define HOME_VALUE_FONT (&ui_font_roboto)
+#endif
+
+static lv_obj_t *home_card(lv_obj_t *parent, int x, int y, int w, int h)
+{
+    lv_obj_t *o = lv_obj_create(parent);
+    lv_obj_set_pos(o, x, y);
+    lv_obj_set_size(o, w, h);
+    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_pad_all(o, 0, 0);
+    lv_obj_set_style_border_width(o, 0, 0);
+    lv_obj_set_style_radius(o, 16, 0);
+    lv_obj_set_style_bg_color(o, lv_color_hex(0x24354b), 0);
+    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+    return o;
+}
+static lv_obj_t *home_label(lv_obj_t *parent, const char *value, int x, int y, const lv_font_t *font, uint32_t color)
+{
+    lv_obj_t *o = lv_label_create(parent);
+    lv_obj_set_pos(o, x, y);
+    lv_obj_set_style_text_font(o, font, 0);
+    lv_obj_set_style_text_color(o, lv_color_hex(color), 0);
+    lv_label_set_text(o, value);
+    return o;
+}
+
 void create_screen_door_cam() {
     lv_obj_t *obj = lv_obj_create(0);
     objects.door_cam = obj;
     lv_obj_set_pos(obj, 0, 0);
     lv_obj_set_size(obj, 800, 480);
-    lv_obj_set_style_bg_grad_color(obj, lv_color_hex(0x101827), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(obj, lv_color_hex(0x101827), 0);
+    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(obj, 0, 0);
+    lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_text_font(obj, &ui_font_roboto, LV_PART_MAIN | LV_STATE_DEFAULT);
     {
         lv_obj_t *parent_obj = obj;
-        {
-            lv_obj_t *obj = lv_obj_create(parent_obj);
-            objects.obj0 = obj;
-            lv_obj_set_pos(obj, 0, 0);
-            lv_obj_set_size(obj, 800, 65);
-            lv_obj_set_style_bg_color(obj, lv_color_hex(0x24354b), LV_PART_MAIN | LV_STATE_DEFAULT);
-        }
-        {
-            lv_obj_t *obj = lv_obj_create(parent_obj);
-            objects.obj1 = obj;
-            lv_obj_set_pos(obj, 20, 85);
-            lv_obj_set_size(obj, 230, 150);
-            lv_obj_set_style_bg_color(obj, lv_color_hex(0x24354b), LV_PART_MAIN | LV_STATE_SCROLLED);
-            lv_obj_set_style_border_width(obj, 0, LV_PART_MAIN | LV_STATE_SCROLLED);
-            lv_obj_set_style_radius(obj, 16, LV_PART_MAIN | LV_STATE_SCROLLED);
-            lv_obj_set_style_bg_color(obj, lv_color_hex(0x24354b), LV_PART_MAIN | LV_STATE_DEFAULT);
-        }
-        {
-            lv_obj_t *obj = lv_label_create(parent_obj);
-            objects.obj2 = obj;
-            lv_obj_set_pos(obj, 372, 1);
-            lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-            lv_obj_set_style_text_font(obj, &ui_font_roboto, LV_PART_MAIN | LV_STATE_SCROLLED);
-            lv_obj_set_style_text_color(obj, lv_color_hex(0xffffff), LV_PART_MAIN | LV_STATE_SCROLLED);
-            lv_obj_set_style_text_color(obj, lv_color_hex(0xffffff), LV_PART_MAIN | LV_STATE_DEFAULT);
-            lv_label_set_text_static(obj, "Мой дом");
-        }
-        {
-            lv_obj_t *obj = lv_label_create(parent_obj);
-            objects.obj3 = obj;
-            lv_obj_set_pos(obj, 85, 120);
-            lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-            lv_obj_set_style_text_color(obj, lv_color_hex(0xfff4f4), LV_PART_MAIN | LV_STATE_DEFAULT);
-            lv_obj_set_style_text_font(obj, &ui_font_roboto, LV_PART_MAIN | LV_STATE_DEFAULT);
-            lv_label_set_text_static(obj, "     Умный дом");
-        }
-        {
-            lv_obj_t *obj = lv_label_create(parent_obj);
-            objects.obj4 = obj;
-            lv_obj_set_pos(obj, 80, 160);
-            lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-            lv_obj_set_style_text_color(obj, lv_color_hex(0xffffff), LV_PART_MAIN | LV_STATE_DEFAULT);
-            lv_obj_set_style_text_font(obj, &ui_font_roboto, LV_PART_MAIN | LV_STATE_DEFAULT);
-            lv_label_set_text_static(obj, "Сенсоры и датчик");
-        }
+        objects.obj0 = home_card(parent_obj, 12, 8, 704, 52);
+        objects.obj2 = home_label(objects.obj0, "Мой дом", 16, 15, &ui_font_roboto, 0xffffff);
+        objects.obj1 = home_card(parent_obj, 12, 72, 382, 170);
+        objects.obj3 = home_label(objects.obj1, "Погода сейчас", 16, 12, &ui_font_roboto, 0xb9cbe0);
+        objects.obj4 = home_label(objects.obj1, "--", 16, 48, HOME_VALUE_FONT, 0xffffff);
+        lv_obj_t *out = home_card(parent_obj, 406, 72, 382, 170);
+        home_label(out, "На улице", 16, 12, &ui_font_roboto, 0xb9cbe0);
+        home_label(out, "-- C", 16, 48, HOME_VALUE_FONT, 0xffffff);
+        home_label(out, "Влажность: -- %", 16, 125, &ui_font_roboto, 0x7fc8f8);
+        lv_obj_t *inside = home_card(parent_obj, 12, 254, 382, 170);
+        home_label(inside, "Климат в доме", 16, 12, &ui_font_roboto, 0xb9cbe0);
+        home_label(inside, "-- C", 16, 48, HOME_VALUE_FONT, 0xffffff);
+        home_label(inside, "Влажность: -- %", 16, 125, &ui_font_roboto, 0x7fc8f8);
+        lv_obj_t *clock = home_card(parent_obj, 406, 254, 382, 170);
+        home_label(clock, "Дата и время", 16, 12, &ui_font_roboto, 0xb9cbe0);
+        home_label(clock, "--:--", 16, 48, HOME_VALUE_FONT, 0xffffff);
+        home_label(clock, "--.--.----", 16, 125, &ui_font_roboto, 0xb9cbe0);
+        home_label(parent_obj, "Home Assistant: --     Wi-Fi: --", 16, 447, &ui_font_roboto, 0xb9cbe0);
         {
             // BtnSettings
             lv_obj_t *obj = lv_button_create(parent_obj);
