@@ -27,3 +27,5 @@ typedef struct {
 } dashboard_ha_snapshot_t;
 esp_err_t dashboard_ha_live_start(void);
 void dashboard_ha_live_snapshot(dashboard_ha_snapshot_t *out);
+
+bool dashboard_ha_person_detected(void);
