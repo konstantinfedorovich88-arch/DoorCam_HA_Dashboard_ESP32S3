@@ -29,7 +29,7 @@ void dashboard_ha_live_snapshot(dashboard_ha_snapshot_t *out)
     xSemaphoreGive(s_mutex);
 }
 
-static void save_entity(const char *id, const char *state)
+static void save_entity(const char *id, const char *state, const char *friendly, const char *unit)
 {
     if (!id || !state) return;
     if (strncmp(id,"light.",6) && strncmp(id,"switch.",7) &&
@@ -38,8 +38,11 @@ static void save_entity(const char *id, const char *state)
     xSemaphoreTake(s_mutex,portMAX_DELAY);
     for (unsigned k=0;k<s_snapshot.panel_count;k++) {
         dashboard_ha_entity_t *card=&s_snapshot.panel_cards[k];
-        if (!strcmp(card->entity_id,id))
-            snprintf(card->state,sizeof(card->state),"%s",state);
+        if (!strcmp(card->entity_id,id)) {
+            snprintf(card->state,sizeof(card->state),"%s%s",state,unit?unit:"");
+            if (friendly && (!card->title[0] || !strcmp(card->title,id)))
+                snprintf(card->title,sizeof(card->title),"%s",friendly);
+        }
     }
     unsigned index=0;
     for (;index<s_snapshot.count;index++)
@@ -56,7 +59,9 @@ static void save_entity(const char *id, const char *state)
     if (strcmp(s_snapshot.entities[index].entity_id,id) != 0)
         snprintf(s_snapshot.entities[index].entity_id,sizeof(s_snapshot.entities[index].entity_id),"%s",id);
     if (strcmp(s_snapshot.entities[index].state,state) != 0)
-        snprintf(s_snapshot.entities[index].state,sizeof(s_snapshot.entities[index].state),"%s",state);
+        snprintf(s_snapshot.entities[index].state,sizeof(s_snapshot.entities[index].state),"%s%s",state,unit?unit:"");
+    if (friendly)
+        snprintf(s_snapshot.entities[index].title,sizeof(s_snapshot.entities[index].title),"%s",friendly);
     xSemaphoreGive(s_mutex);
 }
 
@@ -65,8 +70,13 @@ static void parse_state(cJSON *item)
     if (!cJSON_IsObject(item)) return;
     cJSON *id=cJSON_GetObjectItemCaseSensitive(item,"entity_id");
     cJSON *state=cJSON_GetObjectItemCaseSensitive(item,"state");
+    cJSON *attrs=cJSON_GetObjectItemCaseSensitive(item,"attributes");
+    cJSON *friendly=cJSON_GetObjectItemCaseSensitive(attrs,"friendly_name");
+    cJSON *unit=cJSON_GetObjectItemCaseSensitive(attrs,"unit_of_measurement");
     if (cJSON_IsString(id) && cJSON_IsString(state))
-        save_entity(id->valuestring,state->valuestring);
+        save_entity(id->valuestring,state->valuestring,
+                    cJSON_IsString(friendly)?friendly->valuestring:NULL,
+                    cJSON_IsString(unit)?unit->valuestring:NULL);
 }
 
 
@@ -123,6 +133,8 @@ static void parse_panel_config(cJSON *config)
         for (unsigned j=0;j<s_snapshot.panel_count;j++) {
             if (!strcmp(panel.panel_cards[i].entity_id,s_snapshot.panel_cards[j].entity_id)) {
                 snprintf(panel.panel_cards[i].state,sizeof(panel.panel_cards[i].state),"%s",s_snapshot.panel_cards[j].state);
+                if (!strcmp(panel.panel_cards[i].title,panel.panel_cards[i].entity_id))
+                    snprintf(panel.panel_cards[i].title,sizeof(panel.panel_cards[i].title),"%s",s_snapshot.panel_cards[j].title);
                 break;
             }
         }
