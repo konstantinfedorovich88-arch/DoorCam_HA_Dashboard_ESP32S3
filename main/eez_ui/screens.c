@@ -41,7 +41,7 @@ static lv_obj_t *home_card(lv_obj_t *parent, int x, int y, int w, int h)
     lv_obj_set_style_pad_all(o, 0, 0);
     lv_obj_set_style_border_width(o, 0, 0);
     lv_obj_set_style_radius(o, 16, 0);
-    lv_obj_set_style_bg_color(o, lv_color_hex(0x24354b), 0);
+    lv_obj_set_style_bg_color(o, lv_color_hex(0x101827), 0);
     lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
     return o;
 }
@@ -53,6 +53,27 @@ static lv_obj_t *home_label(lv_obj_t *parent, const char *value, int x, int y, c
     lv_obj_set_style_text_color(o, lv_color_hex(color), 0);
     lv_label_set_text(o, value);
     return o;
+}
+
+static void home_pending_button(lv_obj_t *parent, int x, int y, const char *symbol, const char *title)
+{
+    lv_obj_t *b = lv_button_create(parent);
+    lv_obj_set_pos(b, x, y);
+    lv_obj_set_size(b, 372, 82);
+    lv_obj_set_style_radius(b, 14, 0);
+    lv_obj_set_style_bg_color(b, lv_color_hex(0x24354b), 0);
+    lv_obj_set_style_bg_color(b, lv_color_hex(0x24354b), LV_STATE_DISABLED);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_STATE_DISABLED);
+    lv_obj_set_style_pad_all(b, 0, 0);
+    lv_obj_t *icon = lv_label_create(b);
+    lv_obj_set_style_text_font(icon, LV_FONT_DEFAULT, 0);
+    lv_obj_set_style_text_color(icon, lv_color_hex(0x94a9c2), 0);
+    lv_label_set_text(icon, symbol);
+    lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 12);
+    lv_obj_t *label = home_label(b, title, 0, 0, &ui_font_roboto, 0xb9cbe0);
+    lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -14);
+    /* Controls remain disabled until their actual services are connected. */
+    lv_obj_add_state(b, LV_STATE_DISABLED);
 }
 
 void create_screen_door_cam() {
@@ -69,21 +90,23 @@ void create_screen_door_cam() {
         lv_obj_t *parent_obj = obj;
         objects.obj0 = home_card(parent_obj, 12, 8, 704, 52);
         objects.obj2 = home_label(objects.obj0, "Мой дом", 16, 15, &ui_font_roboto, 0xffffff);
-        objects.obj1 = home_card(parent_obj, 12, 72, 382, 170);
-        objects.obj3 = home_label(objects.obj1, "Погода сейчас", 16, 12, &ui_font_roboto, 0xb9cbe0);
-        objects.obj4 = home_label(objects.obj1, "--", 16, 48, HOME_VALUE_FONT, 0xffffff);
-        lv_obj_t *out = home_card(parent_obj, 406, 72, 382, 170);
-        home_label(out, "На улице", 16, 12, &ui_font_roboto, 0xb9cbe0);
-        home_label(out, "-- C", 16, 48, HOME_VALUE_FONT, 0xffffff);
-        home_label(out, "Влажность: -- %", 16, 125, &ui_font_roboto, 0x7fc8f8);
-        lv_obj_t *inside = home_card(parent_obj, 12, 254, 382, 170);
-        home_label(inside, "Климат в доме", 16, 12, &ui_font_roboto, 0xb9cbe0);
-        home_label(inside, "-- C", 16, 48, HOME_VALUE_FONT, 0xffffff);
-        home_label(inside, "Влажность: -- %", 16, 125, &ui_font_roboto, 0x7fc8f8);
-        lv_obj_t *clock = home_card(parent_obj, 406, 254, 382, 170);
-        home_label(clock, "Дата и время", 16, 12, &ui_font_roboto, 0xb9cbe0);
-        home_label(clock, "--:--", 16, 48, HOME_VALUE_FONT, 0xffffff);
-        home_label(clock, "--.--.----", 16, 125, &ui_font_roboto, 0xb9cbe0);
+        objects.obj1 = home_card(parent_obj, 12, 66, 382, 132);
+        objects.obj3 = home_label(objects.obj1, "Погода сейчас", 16, 8, &ui_font_roboto, 0xb9cbe0);
+        objects.obj4 = home_label(objects.obj1, "--", 16, 32, HOME_VALUE_FONT, 0xffffff);
+        lv_obj_t *out = home_card(parent_obj, 406, 66, 382, 132);
+        home_label(out, "На улице", 16, 8, &ui_font_roboto, 0xb9cbe0);
+        home_label(out, "-- C", 16, 32, HOME_VALUE_FONT, 0xffffff);
+        home_label(out, "Влажность: -- %", 16, 100, &ui_font_roboto, 0x7fc8f8);
+        lv_obj_t *inside = home_card(parent_obj, 12, 202, 382, 132);
+        home_label(inside, "Климат в доме", 16, 8, &ui_font_roboto, 0xb9cbe0);
+        home_label(inside, "-- C", 16, 32, HOME_VALUE_FONT, 0xffffff);
+        home_label(inside, "Влажность: -- %", 16, 100, &ui_font_roboto, 0x7fc8f8);
+        lv_obj_t *clock = home_card(parent_obj, 406, 202, 382, 132);
+        home_label(clock, "Дата и время", 16, 8, &ui_font_roboto, 0xb9cbe0);
+        home_label(clock, "--:--", 16, 32, HOME_VALUE_FONT, 0xffffff);
+        home_label(clock, "--.--.----", 16, 100, &ui_font_roboto, 0xb9cbe0);
+        home_pending_button(parent_obj, 20, 348, LV_SYMBOL_POWER, "Мастер-выключатель");
+        home_pending_button(parent_obj, 408, 348, LV_SYMBOL_VIDEO, "Просмотр камеры");
         home_label(parent_obj, "Home Assistant: --     Wi-Fi: --", 16, 447, &ui_font_roboto, 0xb9cbe0);
         {
             // BtnSettings
