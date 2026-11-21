@@ -120,11 +120,14 @@ void create_screen_door_cam() {
         home_label(inside, "-- C", 16, 32, HOME_VALUE_FONT, 0xffffff);
         home_label(inside, "Влажность: -- %", 16, 100, &ui_font_roboto, 0x7fc8f8);
         lv_obj_t *clock = home_card(parent_obj, 406, 202, 382, 132);
-        home_label(clock, "Дата и время", 16, 8, &ui_font_roboto, 0xb9cbe0);
         home_clock_time = home_label(clock, "--:--", 16, 32, HOME_CLOCK_FONT, 0x4ade80);
         home_clock_date = home_label(clock, "--.--.----", 16, 100, &ui_font_roboto, 0xb9cbe0);
-        lv_obj_align(home_clock_time, LV_ALIGN_CENTER, 0, -4);
-        lv_obj_align(home_clock_date, LV_ALIGN_BOTTOM_MID, 0, -10);
+        lv_obj_align(home_clock_time, LV_ALIGN_CENTER, 0, -12);
+        lv_obj_set_style_transform_pivot_x(home_clock_time, LV_PCT(50), 0);
+        lv_obj_set_style_transform_pivot_y(home_clock_time, LV_PCT(50), 0);
+        lv_obj_set_style_transform_scale_x(home_clock_time, 400, 0);
+        lv_obj_set_style_transform_scale_y(home_clock_time, 650, 0);
+        lv_obj_align(home_clock_date, LV_ALIGN_BOTTOM_MID, 0, -3);
         lv_obj_set_style_text_align(home_clock_time, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_align(home_clock_date, LV_TEXT_ALIGN_CENTER, 0);
         home_pending_button(parent_obj, 20, 348, LV_SYMBOL_POWER, "Мастер-выключатель");
