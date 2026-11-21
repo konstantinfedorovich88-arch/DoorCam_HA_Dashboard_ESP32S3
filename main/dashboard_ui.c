@@ -302,8 +302,12 @@ static void cards_refresh(lv_timer_t *timer)
         const dashboard_ha_entity_t *entity=snap.panel_loaded ?
             &snap.panel_cards[i] : &snap.entities[i];
         char line[160];
-        snprintf(line,sizeof(line),"%s\n%s",
-                 entity->title[0]?entity->title:entity->entity_id,
+        const char *name=entity->title[0]?entity->title:entity->entity_id;
+        if (!strcmp(name,entity->entity_id)) {
+            const char *dot=strchr(name,'.');
+            if (dot) name=dot+1;
+        }
+        snprintf(line,sizeof(line),"%s\n%s",name,
                  entity->state[0]?entity->state:"Loading...");
         if (strcmp(lv_label_get_text(s_card_labels[i]),line)!=0)
             lv_label_set_text(s_card_labels[i],line);
@@ -340,7 +344,7 @@ static void cards_open_cb(lv_event_t *event)
         lv_label_set_text(s_card_labels[i],"Waiting for device...");
         lv_obj_center(s_card_labels[i]);
     }
-    s_cards_timer=lv_timer_create(cards_refresh,1200,NULL);
+    s_cards_timer=lv_timer_create(cards_refresh,3000,NULL);
     cards_refresh(NULL);
 }
 
