@@ -7,7 +7,7 @@
 #include "freertos/task.h"
 #include "lvgl.h"
 #include "dashboard_board.h"
-#include "dashboard_ui.h"
+#include "ui.h"
 #include "dashboard_wifi.h"
 #include "dashboard_ha.h"
 
@@ -89,10 +89,11 @@ static void dashboard_lvgl_task(void *arg)
     } else {
         ESP_LOGW(TAG, "Touch unavailable; UI will remain display-only");
     }
-    dashboard_ui_create();
+    ui_init();
     ESP_LOGI(TAG, "LVGL UI created; Wi-Fi settings available");
 
     while (true) {
+        ui_tick();
         uint32_t wait_ms = lv_timer_handler();
         /* Keep touch and keyboard latency low without busy-spinning LVGL. */
         if (wait_ms < 3) wait_ms = 3;
