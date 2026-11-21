@@ -1,4 +1,7 @@
 #include "esp_log.h"
+#include "esp_sntp.h"
+#include <stdlib.h>
+#include <time.h>
 #include "esp_err.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
@@ -106,7 +109,13 @@ void app_main(void)
 {
     esp_err_t wifi_err = dash_wifi_init();
     if (wifi_err != ESP_OK) ESP_LOGE(TAG, "Wi-Fi init failed: %s", esp_err_to_name(wifi_err));
+    setenv("TZ", "MSK-3", 1);
+    tzset();
     if (wifi_err == ESP_OK) {
+        esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+        esp_sntp_setservername(0, "pool.ntp.org");
+        esp_sntp_setservername(1, "time.google.com");
+        esp_sntp_init();
         esp_err_t web_err = dashboard_ha_web_start();
         if (web_err != ESP_OK) ESP_LOGE(TAG, "HA web setup failed: %s", esp_err_to_name(web_err));
     }
