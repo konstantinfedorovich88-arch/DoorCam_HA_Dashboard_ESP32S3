@@ -75,7 +75,7 @@ esp_err_t dashboard_board_init(void)
                         TAG, "RGB framebuffer");
     uint16_t *pixels = (uint16_t *)framebuffer;
     for (int y = 0; y < LCD_H; ++y) {
-        uint16_t color = y < 160 ? 0xF800 : (y < 320 ? 0x07E0 : 0x001F);
+        uint16_t color = 0x10c4; /* RGB565 of dashboard background #101827 */
         for (int x = 0; x < LCD_W; ++x) pixels[y * LCD_W + x] = color;
     }
     esp_err_t err = enable_backlight();
@@ -83,7 +83,7 @@ esp_err_t dashboard_board_init(void)
         ESP_LOGE(TAG, "Backlight control failed: %s", esp_err_to_name(err));
         return err;
     }
-    ESP_LOGI(TAG, "RGB diagnostic pattern ready: red / green / blue");
+    ESP_LOGI(TAG, "RGB startup background ready");
     return ESP_OK;
 }
 
