@@ -1,4 +1,6 @@
 #include <string.h>
+#include <time.h>
+#include <stdio.h>
 
 #include "screens.h"
 #include "images.h"
@@ -31,6 +33,9 @@ lv_obj_t *tick_value_change_obj;
 #else
 #define HOME_VALUE_FONT (&ui_font_roboto)
 #endif
+
+static lv_obj_t *home_clock_time;
+static lv_obj_t *home_clock_date;
 
 static lv_obj_t *home_card(lv_obj_t *parent, int x, int y, int w, int h)
 {
@@ -103,8 +108,8 @@ void create_screen_door_cam() {
         home_label(inside, "Влажность: -- %", 16, 100, &ui_font_roboto, 0x7fc8f8);
         lv_obj_t *clock = home_card(parent_obj, 406, 202, 382, 132);
         home_label(clock, "Дата и время", 16, 8, &ui_font_roboto, 0xb9cbe0);
-        home_label(clock, "--:--", 16, 32, HOME_VALUE_FONT, 0xffffff);
-        home_label(clock, "--.--.----", 16, 100, &ui_font_roboto, 0xb9cbe0);
+        home_clock_time = home_label(clock, "--:--", 16, 32, HOME_VALUE_FONT, 0xffffff);
+        home_clock_date = home_label(clock, "--.--.----", 16, 100, &ui_font_roboto, 0xb9cbe0);
         home_pending_button(parent_obj, 20, 348, LV_SYMBOL_POWER, "Мастер-выключатель");
         home_pending_button(parent_obj, 408, 348, LV_SYMBOL_VIDEO, "Просмотр камеры");
         home_label(parent_obj, "Home Assistant: --     Wi-Fi: --", 16, 447, &ui_font_roboto, 0xb9cbe0);
@@ -268,6 +273,21 @@ void create_screen_door_cam() {
 }
 
 void tick_screen_door_cam() {
+    static time_t last_minute = -1;
+    time_t now = time(NULL);
+    if (!home_clock_time || !home_clock_date || now < 1704067200) return;
+    if (now / 60 == last_minute) return;
+    struct tm local;
+    if (!localtime_r(&now, &local)) return;
+    last_minute = now / 60;
+    static const char *months[] = {"января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"};
+    static const char *days[] = {"воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"};
+    char value[16], date[96];
+    snprintf(value, sizeof(value), "%02d:%02d", local.tm_hour, local.tm_min);
+    snprintf(date, sizeof(date), "%d %s, %s", local.tm_mday, months[local.tm_mon], days[local.tm_wday]);
+    lv_label_set_text(home_clock_time, value);
+    if (strcmp(lv_label_get_text(home_clock_date), date))
+        lv_label_set_text(home_clock_date, date);
 }
 
 typedef void (*tick_screen_func_t)();
