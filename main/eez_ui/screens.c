@@ -34,6 +34,11 @@ lv_obj_t *tick_value_change_obj;
 #define HOME_VALUE_FONT (&ui_font_roboto)
 #endif
 
+#if LV_FONT_MONTSERRAT_22
+#define HOME_CLOCK_FONT (&lv_font_montserrat_22)
+#else
+#define HOME_CLOCK_FONT HOME_VALUE_FONT
+#endif
 static lv_obj_t *home_clock_time;
 static lv_obj_t *home_clock_date;
 
@@ -108,7 +113,7 @@ void create_screen_door_cam() {
         home_label(inside, "Влажность: -- %", 16, 100, &ui_font_roboto, 0x7fc8f8);
         lv_obj_t *clock = home_card(parent_obj, 406, 202, 382, 132);
         home_label(clock, "Дата и время", 16, 8, &ui_font_roboto, 0xb9cbe0);
-        home_clock_time = home_label(clock, "--:--", 16, 32, HOME_VALUE_FONT, 0xffffff);
+        home_clock_time = home_label(clock, "--:--", 16, 32, HOME_CLOCK_FONT, 0x4ade80);
         home_clock_date = home_label(clock, "--.--.----", 16, 100, &ui_font_roboto, 0xb9cbe0);
         home_pending_button(parent_obj, 20, 348, LV_SYMBOL_POWER, "Мастер-выключатель");
         home_pending_button(parent_obj, 408, 348, LV_SYMBOL_VIDEO, "Просмотр камеры");
