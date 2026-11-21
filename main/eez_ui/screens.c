@@ -4,6 +4,7 @@
 
 #include "screens.h"
 #include "../dashboard_ha.h"
+#include "../dashboard_wifi.h"
 #include "images.h"
 #include "fonts.h"
 #include "actions.h"
@@ -45,6 +46,8 @@ lv_obj_t *tick_value_change_obj;
 static lv_obj_t *home_clock_time;
 static lv_obj_t *home_clock_date;
 static lv_obj_t *home_camera_button;
+static lv_obj_t *home_ha_status;
+static lv_obj_t *home_wifi_status;
 
 static lv_obj_t *home_card(lv_obj_t *parent, int x, int y, int w, int h)
 {
@@ -126,7 +129,8 @@ void create_screen_door_cam() {
         lv_obj_set_style_text_align(home_clock_date, LV_TEXT_ALIGN_CENTER, 0);
         home_pending_button(parent_obj, 20, 348, LV_SYMBOL_POWER, "Мастер-выключатель");
         home_camera_button = home_pending_button(parent_obj, 408, 348, LV_SYMBOL_VIDEO, "Просмотр камеры");
-        home_label(parent_obj, "Home Assistant: --     Wi-Fi: --", 16, 447, &ui_font_roboto, 0xb9cbe0);
+        home_ha_status = home_label(parent_obj, "Home Assistant: --", 16, 447, &ui_font_roboto, 0xb9cbe0);
+        home_wifi_status = home_label(parent_obj, "Wi-Fi: --", 408, 447, &ui_font_roboto, 0xb9cbe0);
         {
             // BtnSettings
             lv_obj_t *obj = lv_button_create(parent_obj);
@@ -287,6 +291,25 @@ void create_screen_door_cam() {
 }
 
 void tick_screen_door_cam() {
+    static uint32_t last_status_tick;
+    static int last_ha = -1, last_wifi = -1;
+    if (home_ha_status && home_wifi_status &&
+        (last_ha < 0 || lv_tick_elaps(last_status_tick) >= 1000)) {
+        last_status_tick = lv_tick_get();
+        bool ha = dashboard_ha_is_connected();
+        dash_wifi_snapshot_t wifi;
+        dash_wifi_snapshot(&wifi);
+        if (last_ha != ha) {
+            last_ha = ha;
+            lv_label_set_text(home_ha_status, ha ? "Home Assistant: подключён" : "Home Assistant: нет связи");
+            lv_obj_set_style_text_color(home_ha_status, lv_color_hex(ha ? 0x4ade80 : 0xf87171), 0);
+        }
+        if (last_wifi != wifi.connected) {
+            last_wifi = wifi.connected;
+            lv_label_set_text(home_wifi_status, wifi.connected ? "Wi-Fi: подключён" : "Wi-Fi: нет связи");
+            lv_obj_set_style_text_color(home_wifi_status, lv_color_hex(wifi.connected ? 0x4ade80 : 0xf87171), 0);
+        }
+    }
     static bool last_detected = false;
     static lv_obj_t *last_button = NULL;
     if (home_camera_button) {
