@@ -5,7 +5,6 @@
 #include "cJSON.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
-#include "freertos/task.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -200,19 +199,6 @@ static void process_message(char *message)
     cJSON_Delete(root);
 }
 
-/* Low-frequency configuration refresh; state changes arrive via subscription. */
-static void panel_sync_task(void *arg)
-{
-    (void)arg;
-    const char *request="{\\\"id\\\":3,\\\"type\\\":\\\"lovelace/config\\\",\\\"url_path\\\":\\\"doorcam-panel\\\"}";
-    while (true) {
-        vTaskDelay(pdMS_TO_TICKS(30000));
-        if (s_ws && esp_websocket_client_is_connected(s_ws)) {
-            esp_websocket_client_send_text(s_ws,request,strlen(request),pdMS_TO_TICKS(1000));
-        }
-    }
-}
-
 static void ws_event(void *arg, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     (void)arg; (void)base;
@@ -260,10 +246,6 @@ esp_err_t dashboard_ha_live_start(void)
     esp_err_t err=esp_websocket_register_events(s_ws,WEBSOCKET_EVENT_ANY,ws_event,NULL);
     if (err!=ESP_OK) return err;
     err=esp_websocket_client_start(s_ws);
-    if (err==ESP_OK) {
-        s_started=true;
-        if (xTaskCreate(panel_sync_task,"panel_sync",3072,NULL,3,NULL)!=pdPASS)
-            ESP_LOGW(TAG,"Panel auto-refresh task could not start");
-    }
+    if (err==ESP_OK) s_started=true;
     return err;
 }
