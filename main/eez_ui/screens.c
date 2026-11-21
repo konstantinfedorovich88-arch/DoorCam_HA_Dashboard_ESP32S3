@@ -162,129 +162,51 @@ void create_screen_door_cam() {
             lv_image_set_scale(obj, 250);
         }
         {
-            // SettingsPopup
+            // SettingsPopup — retain existing open/close callbacks.
             lv_obj_t *obj = lv_obj_create(parent_obj);
             objects.settings_popup = obj;
-            lv_obj_set_pos(obj, 190, 50);
-            lv_obj_set_size(obj, 420, 380);
+            lv_obj_set_pos(obj, 170, 25);
+            lv_obj_set_size(obj, 460, 430);
             lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(obj, LV_OBJ_FLAG_SNAPPABLE);
-            lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_OFF);
-            lv_obj_set_style_bg_color(obj, lv_color_hex(0x172234), LV_PART_MAIN | LV_STATE_DEFAULT);
-            lv_obj_set_style_radius(obj, 18, LV_PART_MAIN | LV_STATE_DEFAULT);
-            {
-                lv_obj_t *parent_obj = obj;
-                {
-                    lv_obj_t *obj = lv_button_create(parent_obj);
-                    objects.obj5 = obj;
-                    lv_obj_set_pos(obj, 325, -20);
-                    lv_obj_set_size(obj, 58, 27);
-                    lv_obj_add_event_cb(obj, action_close_settings, LV_EVENT_CLICKED, (void *)0);
-                    lv_obj_set_style_bg_color(obj, lv_color_hex(0x212121), LV_PART_MAIN | LV_STATE_DEFAULT);
-                    lv_obj_set_style_text_color(obj, lv_color_hex(0xf00000), LV_PART_MAIN | LV_STATE_DEFAULT);
-                    {
-                        lv_obj_t *parent_obj = obj;
-                        {
-                            lv_obj_t *obj = lv_label_create(parent_obj);
-                            lv_obj_set_pos(obj, 0, 0);
-                            lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-                            lv_obj_set_style_align(obj, LV_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
-                            lv_label_set_text_static(obj, "X");
-                        }
-                    }
-                }
-                {
-                    lv_obj_t *obj = lv_label_create(parent_obj);
-                    objects.obj6 = obj;
-                    lv_obj_set_pos(obj, 153, -16);
-                    lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-                    lv_obj_set_style_text_color(obj, lv_color_hex(0xffffff), LV_PART_MAIN | LV_STATE_DEFAULT);
-                    lv_label_set_text_static(obj, "Настройки");
-                }
-                {
-                    lv_obj_t *obj = lv_button_create(parent_obj);
-                    objects.obj7 = obj;
-                    lv_obj_set_pos(obj, 0, 267);
-                    lv_obj_set_size(obj, 374, 50);
-                    lv_obj_set_style_text_color(obj, lv_color_hex(0x3cffde), LV_PART_MAIN | LV_STATE_DEFAULT);
-                    {
-                        lv_obj_t *parent_obj = obj;
-                        {
-                            lv_obj_t *obj = lv_label_create(parent_obj);
-                            lv_obj_set_pos(obj, 0, 0);
-                            lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-                            lv_obj_set_style_align(obj, LV_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
-                            lv_label_set_text_static(obj, "Система");
-                        }
-                    }
-                }
-                {
-                    lv_obj_t *obj = lv_button_create(parent_obj);
-                    lv_obj_set_pos(obj, 0, 204);
-                    lv_obj_set_size(obj, 374, 50);
-                    {
-                        lv_obj_t *parent_obj = obj;
-                        {
-                            lv_obj_t *obj = lv_label_create(parent_obj);
-                            objects.obj8 = obj;
-                            lv_obj_set_pos(obj, 0, 0);
-                            lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-                            lv_obj_set_style_align(obj, LV_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
-                            lv_obj_set_style_text_color(obj, lv_color_hex(0x3cffde), LV_PART_MAIN | LV_STATE_DEFAULT);
-                            lv_label_set_text_static(obj, "Home Assistant");
-                        }
-                    }
-                }
-                {
-                    lv_obj_t *obj = lv_button_create(parent_obj);
-                    lv_obj_set_pos(obj, 0, 138);
-                    lv_obj_set_size(obj, 374, 50);
-                    {
-                        lv_obj_t *parent_obj = obj;
-                        {
-                            lv_obj_t *obj = lv_label_create(parent_obj);
-                            objects.obj9 = obj;
-                            lv_obj_set_pos(obj, 0, 0);
-                            lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-                            lv_obj_set_style_align(obj, LV_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
-                            lv_obj_set_style_text_color(obj, lv_color_hex(0x3cffde), LV_PART_MAIN | LV_STATE_DEFAULT);
-                            lv_label_set_text_static(obj, "Звук");
-                        }
-                    }
-                }
-                {
-                    lv_obj_t *obj = lv_button_create(parent_obj);
-                    objects.obj10 = obj;
-                    lv_obj_set_pos(obj, 0, 73);
-                    lv_obj_set_size(obj, 374, 50);
-                    lv_obj_set_style_text_color(obj, lv_color_hex(0x3cffde), LV_PART_MAIN | LV_STATE_DEFAULT);
-                    {
-                        lv_obj_t *parent_obj = obj;
-                        {
-                            lv_obj_t *obj = lv_label_create(parent_obj);
-                            lv_obj_set_pos(obj, 0, 0);
-                            lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-                            lv_obj_set_style_align(obj, LV_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
-                            lv_label_set_text_static(obj, "Экран");
-                        }
-                    }
-                }
-                {
-                    lv_obj_t *obj = lv_button_create(parent_obj);
-                    lv_obj_set_pos(obj, 0, 13);
-                    lv_obj_set_size(obj, 374, 50);
-                    {
-                        lv_obj_t *parent_obj = obj;
-                        {
-                            lv_obj_t *obj = lv_label_create(parent_obj);
-                            objects.obj11 = obj;
-                            lv_obj_set_pos(obj, 0, 0);
-                            lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-                            lv_obj_set_style_align(obj, LV_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
-                            lv_obj_set_style_text_color(obj, lv_color_hex(0x3cffde), LV_PART_MAIN | LV_STATE_DEFAULT);
-                            lv_label_set_text_static(obj, "Wi-Fi");
-                        }
-                    }
+            lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_style_pad_all(obj, 0, 0);
+            lv_obj_set_style_border_width(obj, 1, 0);
+            lv_obj_set_style_border_color(obj, lv_color_hex(0x344b66), 0);
+            lv_obj_set_style_bg_color(obj, lv_color_hex(0x172234), 0);
+            lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
+            lv_obj_set_style_radius(obj, 18, 0);
+            objects.obj6 = home_label(obj, "Настройки", 0, 0, &ui_font_roboto, 0xffffff);
+            lv_obj_align(objects.obj6, LV_ALIGN_TOP_MID, 0, 22);
+            objects.obj5 = lv_button_create(obj);
+            lv_obj_set_pos(objects.obj5, 398, 10);
+            lv_obj_set_size(objects.obj5, 46, 42);
+            lv_obj_set_style_bg_color(objects.obj5, lv_color_hex(0x24354b), 0);
+            lv_obj_add_event_cb(objects.obj5, action_close_settings, LV_EVENT_CLICKED, NULL);
+            lv_obj_t *close = lv_label_create(objects.obj5);
+            lv_label_set_text(close, LV_SYMBOL_CLOSE);
+            lv_obj_set_style_text_color(close, lv_color_hex(0xf87171), 0);
+            lv_obj_center(close);
+            const char *titles[] = {"Wi-Fi", "Экран", "Звук", "Home Assistant", "Система"};
+            const char *symbols[] = {LV_SYMBOL_WIFI, LV_SYMBOL_IMAGE, LV_SYMBOL_VOLUME_MAX, LV_SYMBOL_HOME, LV_SYMBOL_SETTINGS};
+            for (int i = 0; i < 5; i++) {
+                lv_obj_t *button = lv_button_create(obj);
+                lv_obj_set_pos(button, 16, 64 + i * 70);
+                lv_obj_set_size(button, 426, 58);
+                lv_obj_set_style_radius(button, 12, 0);
+                lv_obj_set_style_pad_all(button, 0, 0);
+                lv_obj_set_style_bg_color(button, lv_color_hex(0x24354b), 0);
+                lv_obj_t *icon = home_label(button, symbols[i], 16, 0, LV_FONT_DEFAULT, 0x3cffde);
+                lv_obj_align(icon, LV_ALIGN_LEFT_MID, 18, 0);
+                lv_obj_t *label = home_label(button, titles[i], 0, 0, &ui_font_roboto, 0x3cffde);
+                lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+                lv_obj_t *arrow = home_label(button, LV_SYMBOL_RIGHT, 0, 0, LV_FONT_DEFAULT, 0x94a9c2);
+                lv_obj_align(arrow, LV_ALIGN_RIGHT_MID, -18, 0);
+                switch (i) {
+                    case 0: objects.obj11 = label; break;
+                    case 1: objects.obj10 = button; break;
+                    case 2: objects.obj9 = label; break;
+                    case 3: objects.obj8 = label; break;
+                    case 4: objects.obj7 = button; break;
                 }
             }
         }
