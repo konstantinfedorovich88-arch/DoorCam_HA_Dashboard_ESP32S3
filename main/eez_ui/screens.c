@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "screens.h"
+#include "../dashboard_ha.h"
 #include "images.h"
 #include "fonts.h"
 #include "actions.h"
@@ -43,6 +44,7 @@ lv_obj_t *tick_value_change_obj;
 #endif
 static lv_obj_t *home_clock_time;
 static lv_obj_t *home_clock_date;
+static lv_obj_t *home_camera_button;
 
 static lv_obj_t *home_card(lv_obj_t *parent, int x, int y, int w, int h)
 {
@@ -67,7 +69,7 @@ static lv_obj_t *home_label(lv_obj_t *parent, const char *value, int x, int y, c
     return o;
 }
 
-static void home_pending_button(lv_obj_t *parent, int x, int y, const char *symbol, const char *title)
+static lv_obj_t *home_pending_button(lv_obj_t *parent, int x, int y, const char *symbol, const char *title)
 {
     lv_obj_t *b = lv_button_create(parent);
     lv_obj_set_pos(b, x, y);
@@ -86,6 +88,7 @@ static void home_pending_button(lv_obj_t *parent, int x, int y, const char *symb
     lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -14);
     /* Controls remain disabled until their actual services are connected. */
     lv_obj_add_state(b, LV_STATE_DISABLED);
+    return b;
 }
 
 void create_screen_door_cam() {
@@ -122,7 +125,7 @@ void create_screen_door_cam() {
         lv_obj_set_style_text_align(home_clock_time, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_align(home_clock_date, LV_TEXT_ALIGN_CENTER, 0);
         home_pending_button(parent_obj, 20, 348, LV_SYMBOL_POWER, "Мастер-выключатель");
-        home_pending_button(parent_obj, 408, 348, LV_SYMBOL_VIDEO, "Просмотр камеры");
+        home_camera_button = home_pending_button(parent_obj, 408, 348, LV_SYMBOL_VIDEO, "Просмотр камеры");
         home_label(parent_obj, "Home Assistant: --     Wi-Fi: --", 16, 447, &ui_font_roboto, 0xb9cbe0);
         {
             // BtnSettings
@@ -284,6 +287,22 @@ void create_screen_door_cam() {
 }
 
 void tick_screen_door_cam() {
+    static bool last_detected = false;
+    static lv_obj_t *last_button = NULL;
+    if (home_camera_button) {
+        bool detected = dashboard_ha_person_detected();
+        if (detected != last_detected || last_button != home_camera_button) {
+            last_detected = detected;
+            last_button = home_camera_button;
+            lv_color_t bg = lv_color_hex(detected ? 0xffd600 : 0x24354b);
+            lv_obj_set_style_bg_color(home_camera_button, bg, 0);
+            lv_obj_set_style_bg_color(home_camera_button, bg, LV_STATE_DISABLED);
+            lv_obj_set_style_text_color(lv_obj_get_child(home_camera_button, 0),
+                lv_color_hex(detected ? 0x202020 : 0x94a9c2), 0);
+            lv_obj_set_style_text_color(lv_obj_get_child(home_camera_button, 1),
+                lv_color_hex(detected ? 0x202020 : 0xb9cbe0), 0);
+        }
+    }
     static time_t last_minute = -1;
     time_t now = time(NULL);
     if (!home_clock_time || !home_clock_date || now < 1704067200) return;
