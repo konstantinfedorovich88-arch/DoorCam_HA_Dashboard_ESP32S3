@@ -305,10 +305,6 @@ static void cards_refresh(lv_timer_t *timer)
         snprintf(line,sizeof(line),"%s\n%s",
                  entity->title[0]?entity->title:entity->entity_id,
                  entity->state[0]?entity->state:"Loading...");
-        bool active=!strcmp(entity->state,"on") || !strcmp(entity->state,"home") || !strcmp(entity->state,"open");
-        lv_color_t bg=lv_color_hex(active?0x173B30:0x202A38);
-        if (!lv_color_eq(lv_obj_get_style_bg_color(card,LV_PART_MAIN),bg))
-            lv_obj_set_style_bg_color(card,bg,LV_PART_MAIN);
         if (strcmp(lv_label_get_text(s_card_labels[i]),line)!=0)
             lv_label_set_text(s_card_labels[i],line);
     }
@@ -337,13 +333,9 @@ static void cards_open_cb(lv_event_t *event)
     for (unsigned i=0;i<DASH_HA_MAX_ENTITIES;i++) {
         lv_obj_t *card=lv_obj_create(s_cards_panel);
         lv_obj_set_size(card,170,140);
-        lv_obj_set_style_bg_color(card,lv_color_hex(0x202A38),LV_PART_MAIN);
-        lv_obj_set_style_border_width(card,0,LV_PART_MAIN);
-        lv_obj_set_scrollbar_mode(card,LV_SCROLLBAR_MODE_OFF);
         lv_obj_set_pos(card,12+(int)(i%4)*180,65+(int)(i/4)*150);
         s_card_labels[i]=lv_label_create(card);
         lv_label_set_long_mode(s_card_labels[i],LV_LABEL_LONG_WRAP);
-        lv_obj_set_style_text_color(s_card_labels[i],lv_color_hex(0xF1F5F9),LV_PART_MAIN);
         lv_obj_set_width(s_card_labels[i],140);
         lv_label_set_text(s_card_labels[i],"Waiting for device...");
         lv_obj_center(s_card_labels[i]);
