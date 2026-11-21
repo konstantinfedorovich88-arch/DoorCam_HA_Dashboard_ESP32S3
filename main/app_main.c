@@ -11,6 +11,7 @@
 #include "lvgl.h"
 #include "dashboard_board.h"
 #include "ui.h"
+#include "eez_ui/fonts.h"
 #include "dashboard_wifi.h"
 #include "dashboard_ha.h"
 
@@ -92,7 +93,39 @@ static void dashboard_lvgl_task(void *arg)
     } else {
         ESP_LOGW(TAG, "Touch unavailable; UI will remain display-only");
     }
+    lv_obj_t *splash = lv_screen_active();
+    lv_obj_set_style_bg_color(splash, lv_color_hex(0x101827), 0);
+    lv_obj_set_style_bg_opa(splash, LV_OPA_COVER, 0);
+    lv_obj_t *welcome = lv_label_create(splash);
+    lv_label_set_text(welcome, "Вас приветствует");
+    lv_obj_set_style_text_font(welcome, &ui_font_roboto, 0);
+    lv_obj_set_style_text_color(welcome, lv_color_hex(0xffffff), 0);
+    lv_obj_align(welcome, LV_ALIGN_CENTER, 0, -35);
+    lv_obj_set_style_transform_pivot_x(welcome, LV_PCT(50), 0);
+    lv_obj_set_style_transform_pivot_y(welcome, LV_PCT(50), 0);
+    lv_obj_set_style_transform_scale_x(welcome, 512, 0);
+    lv_obj_set_style_transform_scale_y(welcome, 512, 0);
+    lv_obj_t *home = lv_label_create(splash);
+    lv_label_set_text(home, "умный дом");
+    lv_obj_set_style_text_font(home, &ui_font_roboto, 0);
+    lv_obj_set_style_text_color(home, lv_color_hex(0x4ade80), 0);
+    lv_obj_align(home, LV_ALIGN_CENTER, 0, 15);
+    lv_obj_set_style_transform_pivot_x(home, LV_PCT(50), 0);
+    lv_obj_set_style_transform_pivot_y(home, LV_PCT(50), 0);
+    lv_obj_set_style_transform_scale_x(home, 768, 0);
+    lv_obj_set_style_transform_scale_y(home, 768, 0);
+    lv_obj_t *loading = lv_label_create(splash);
+    lv_label_set_text(loading, "Загрузка системы...");
+    lv_obj_set_style_text_font(loading, &ui_font_roboto, 0);
+    lv_obj_set_style_text_color(loading, lv_color_hex(0xb9cbe0), 0);
+    lv_obj_align(loading, LV_ALIGN_CENTER, 0, 95);
+    uint32_t splash_start = lv_tick_get();
+    while (lv_tick_elaps(splash_start) < 3000) {
+        lv_timer_handler();
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
     ui_init();
+    if (lv_screen_active() != splash) lv_obj_delete(splash);
     ESP_LOGI(TAG, "LVGL UI created; Wi-Fi settings available");
 
     while (true) {
