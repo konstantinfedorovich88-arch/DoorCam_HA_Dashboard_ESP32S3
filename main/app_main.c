@@ -105,6 +105,30 @@ static void dashboard_lvgl_task(void *arg)
     }
 }
 
+static void dashboard_ha_start_task(void *arg)
+{
+    (void)arg;
+    bool warned = false;
+    for (;;) {
+        dash_wifi_snapshot_t wifi;
+        dash_wifi_snapshot(&wifi);
+        if (wifi.connected) {
+            if (dashboard_ha_has_token()) {
+                esp_err_t err = dashboard_ha_live_start();
+                ESP_LOGI(TAG, "HA WebSocket start: %s", esp_err_to_name(err));
+                if (err == ESP_OK) break;
+                /* Avoid repeatedly allocating resources after a failed start. */
+                break;
+            } else if (!warned) {
+                ESP_LOGW(TAG, "HA token missing; configure via http://%s/", wifi.ip);
+                warned = true;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    vTaskDelete(NULL);
+}
+
 void app_main(void)
 {
     esp_err_t wifi_err = dash_wifi_init();
@@ -118,6 +142,8 @@ void app_main(void)
         esp_sntp_init();
         esp_err_t web_err = dashboard_ha_web_start();
         if (web_err != ESP_OK) ESP_LOGE(TAG, "HA web setup failed: %s", esp_err_to_name(web_err));
+        if (xTaskCreate(dashboard_ha_start_task, "ha_start", 4096, NULL, 4, NULL) != pdPASS)
+            ESP_LOGE(TAG, "Failed to create HA startup task");
     }
     BaseType_t ok = xTaskCreatePinnedToCore(dashboard_lvgl_task, "dashboard_lvgl",
                                             16384, NULL, 7, NULL, 1);
