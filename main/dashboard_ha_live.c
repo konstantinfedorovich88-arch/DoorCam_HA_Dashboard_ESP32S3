@@ -283,3 +283,13 @@ esp_err_t dashboard_ha_live_start(void)
     if (err==ESP_OK) s_started=true;
     return err;
 }
+
+
+bool dashboard_ha_is_connected(void)
+{
+    if (!s_mutex) return false;
+    xSemaphoreTake(s_mutex,portMAX_DELAY);
+    bool connected=s_snapshot.connected;
+    xSemaphoreGive(s_mutex);
+    return connected;
+}
