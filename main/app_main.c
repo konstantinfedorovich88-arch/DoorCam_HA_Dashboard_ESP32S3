@@ -88,8 +88,8 @@ static void dashboard_lvgl_task(void *arg)
         /* Poll touch every 15 ms instead of LVGL's default interval.
            This reduces input latency without changing RGB DMA or Wi-Fi timing. */
         lv_timer_t *touch_timer = lv_indev_get_read_timer(touch);
-        if (touch_timer) lv_timer_set_period(touch_timer, 15);
-        ESP_LOGI(TAG, "GT911 LVGL touch input registered (15 ms polling)");
+        if (touch_timer) lv_timer_set_period(touch_timer, 10);
+        ESP_LOGI(TAG, "GT911 LVGL touch input registered (10 ms polling)");
     } else {
         ESP_LOGW(TAG, "Touch unavailable; UI will remain display-only");
     }
@@ -133,7 +133,7 @@ static void dashboard_lvgl_task(void *arg)
         uint32_t wait_ms = lv_timer_handler();
         /* Keep touch and keyboard latency low without busy-spinning LVGL. */
         if (wait_ms < 3) wait_ms = 3;
-        if (wait_ms > 10) wait_ms = 10;
+        if (wait_ms > 5) wait_ms = 5;
         vTaskDelay(pdMS_TO_TICKS(wait_ms));
     }
 }
