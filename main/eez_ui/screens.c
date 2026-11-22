@@ -47,6 +47,62 @@ lv_obj_t *tick_value_change_obj;
 #endif
 static lv_obj_t *settings_main;
 static lv_obj_t *settings_screen_page;
+static lv_obj_t *settings_sound_page;
+static lv_obj_t *sound_volume_label;
+static lv_obj_t *sound_mic_label;
+static uint8_t sound_volume = 60;
+static uint8_t sound_mic = 60;
+
+static void sound_settings_save(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("doorcam_sound", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u8(h, "volume", sound_volume);
+        nvs_set_u8(h, "mic_gain", sound_mic);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+static void sound_settings_load(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("doorcam_sound", NVS_READONLY, &h) == ESP_OK) {
+        uint8_t v;
+        if (nvs_get_u8(h, "volume", &v) == ESP_OK && v <= 100) sound_volume = v;
+        if (nvs_get_u8(h, "mic_gain", &v) == ESP_OK && v <= 100) sound_mic = v;
+        nvs_close(h);
+    }
+}
+
+static void sound_volume_changed(lv_event_t *e)
+{
+    sound_volume = (uint8_t)lv_slider_get_value(lv_event_get_target(e));
+    if (sound_volume_label) lv_label_set_text_fmt(sound_volume_label, "Громкость: %u%%", sound_volume);
+    sound_settings_save();
+}
+
+static void sound_mic_changed(lv_event_t *e)
+{
+    sound_mic = (uint8_t)lv_slider_get_value(lv_event_get_target(e));
+    if (sound_mic_label) lv_label_set_text_fmt(sound_mic_label, "Микрофон: %u%%", sound_mic);
+    sound_settings_save();
+}
+
+static void sound_settings_open(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_add_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(settings_sound_page, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void sound_settings_back(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_add_flag(settings_sound_page, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+}
+
 static lv_obj_t *screen_timeout_label;
 static uint32_t screen_last_activity;
 static uint32_t screen_timeout_ms = 60000;
@@ -452,6 +508,7 @@ void create_screen_door_cam() {
                 lv_obj_align(arrow, LV_ALIGN_RIGHT_MID, -18, 0);
                 if (i == 0) lv_obj_add_event_cb(button, settings_wifi_open, LV_EVENT_CLICKED, NULL);
                 if (i == 1) lv_obj_add_event_cb(button, screen_settings_open, LV_EVENT_CLICKED, NULL);
+                if (i == 2) lv_obj_add_event_cb(button, sound_settings_open, LV_EVENT_CLICKED, NULL);
                 switch (i) {
                     case 0: objects.obj11 = label; break;
                     case 1: objects.obj10 = button; break;
@@ -495,6 +552,51 @@ void create_screen_door_cam() {
             lv_obj_set_width(screen_note, 410);
             lv_label_set_long_mode(screen_note, LV_LABEL_LONG_WRAP);
             home_label(settings_screen_page, "Яркость: аппаратная проверка PWM", 12, 275, &ui_font_roboto, 0x94a9c2);
+
+            /* Audio preferences are persisted now; codec/I2S wiring will be
+             * connected separately once the audio hardware is selected. */
+            sound_settings_load();
+            settings_sound_page = lv_obj_create(parent_obj);
+            lv_obj_set_pos(settings_sound_page, 170, 25);
+            lv_obj_set_size(settings_sound_page, 460, 430);
+            lv_obj_set_style_bg_color(settings_sound_page, lv_color_hex(0x172234), 0);
+            lv_obj_set_style_bg_opa(settings_sound_page, LV_OPA_COVER, 0);
+            lv_obj_set_style_border_width(settings_sound_page, 0, 0);
+            lv_obj_set_style_radius(settings_sound_page, 18, 0);
+            lv_obj_set_style_pad_all(settings_sound_page, 12, 0);
+            lv_obj_remove_flag(settings_sound_page, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_add_flag(settings_sound_page, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_t *sound_back = lv_button_create(settings_sound_page);
+            lv_obj_set_pos(sound_back, 0, 0);
+            lv_obj_set_size(sound_back, 82, 42);
+            lv_obj_set_style_bg_color(sound_back, lv_color_hex(0x24354b), 0);
+            lv_obj_add_event_cb(sound_back, sound_settings_back, LV_EVENT_CLICKED, NULL);
+            lv_obj_t *sound_back_text = lv_label_create(sound_back);
+            lv_label_set_text(sound_back_text, "Назад");
+            lv_obj_center(sound_back_text);
+            lv_obj_t *sound_title = home_label(settings_sound_page, "Звук", 0, 0, &ui_font_roboto, 0x3cffde);
+            lv_obj_align(sound_title, LV_ALIGN_TOP_MID, 0, 12);
+            sound_volume_label = home_label(settings_sound_page, "", 12, 75, &ui_font_roboto, 0xffffff);
+            lv_label_set_text_fmt(sound_volume_label, "Громкость: %u%%", sound_volume);
+            lv_obj_t *vol_slider = lv_slider_create(settings_sound_page);
+            lv_obj_set_pos(vol_slider, 20, 122);
+            lv_obj_set_width(vol_slider, 390);
+            lv_slider_set_range(vol_slider, 0, 100);
+            lv_slider_set_value(vol_slider, sound_volume, LV_ANIM_OFF);
+            lv_obj_add_event_cb(vol_slider, sound_volume_changed, LV_EVENT_VALUE_CHANGED, NULL);
+            sound_mic_label = home_label(settings_sound_page, "", 12, 187, &ui_font_roboto, 0xffffff);
+            lv_label_set_text_fmt(sound_mic_label, "Микрофон: %u%%", sound_mic);
+            lv_obj_t *mic_slider = lv_slider_create(settings_sound_page);
+            lv_obj_set_pos(mic_slider, 20, 234);
+            lv_obj_set_width(mic_slider, 390);
+            lv_slider_set_range(mic_slider, 0, 100);
+            lv_slider_set_value(mic_slider, sound_mic, LV_ANIM_OFF);
+            lv_obj_add_event_cb(mic_slider, sound_mic_changed, LV_EVENT_VALUE_CHANGED, NULL);
+            lv_obj_t *sound_note = home_label(settings_sound_page,
+                "Настройки сохранены. Аудиомодуль пока не подключён.",
+                12, 300, &ui_font_roboto, 0x94a9c2);
+            lv_obj_set_width(sound_note, 410);
+            lv_label_set_long_mode(sound_note, LV_LABEL_LONG_WRAP);
             settings_wifi_page = lv_obj_create(parent_obj);
             lv_obj_set_pos(settings_wifi_page, 170, 25);
             lv_obj_set_size(settings_wifi_page, 460, 430);
