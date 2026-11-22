@@ -61,28 +61,28 @@ static uint32_t system_last_tick;
 static void system_settings_open(lv_event_t *e)
 {
     (void)e;
-    lv_obj_add_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(settings_system_page, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(settings_main, true);
+    lv_obj_set_hidden(settings_system_page, false);
     system_last_tick = 0;
 }
 
 static void system_settings_back(lv_event_t *e)
 {
     (void)e;
-    lv_obj_add_flag(settings_system_page, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(settings_system_page, true);
+    lv_obj_set_hidden(settings_main, false);
 }
 
 static void system_restart_ask(lv_event_t *e)
 {
     (void)e;
-    lv_obj_remove_flag(system_restart_confirm, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(system_restart_confirm, false);
 }
 
 static void system_restart_cancel(lv_event_t *e)
 {
     (void)e;
-    lv_obj_add_flag(system_restart_confirm, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(system_restart_confirm, true);
 }
 
 static void system_restart_now(lv_event_t *e)
@@ -93,7 +93,7 @@ static void system_restart_now(lv_event_t *e)
 
 static void system_settings_refresh(void)
 {
-    if (!settings_system_page || lv_obj_has_flag(settings_system_page, LV_OBJ_FLAG_HIDDEN)) return;
+    if (!settings_system_page || lv_obj_is_hidden(settings_system_page)) return;
     if (system_last_tick && lv_tick_elaps(system_last_tick) < 2000) return;
     system_last_tick = lv_tick_get();
     esp_chip_info_t chip;
@@ -122,16 +122,16 @@ static uint32_t ha_page_last_tick;
 static void ha_settings_open(lv_event_t *e)
 {
     (void)e;
-    lv_obj_add_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(settings_ha_page, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(settings_main, true);
+    lv_obj_set_hidden(settings_ha_page, false);
     ha_page_last_tick = 0;
 }
 
 static void ha_settings_back(lv_event_t *e)
 {
     (void)e;
-    lv_obj_add_flag(settings_ha_page, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(settings_ha_page, true);
+    lv_obj_set_hidden(settings_main, false);
 }
 
 static void ha_settings_test(lv_event_t *e)
@@ -145,7 +145,7 @@ static void ha_settings_test(lv_event_t *e)
 
 static void ha_settings_refresh(void)
 {
-    if (!settings_ha_page || lv_obj_has_flag(settings_ha_page, LV_OBJ_FLAG_HIDDEN)) return;
+    if (!settings_ha_page || lv_obj_is_hidden(settings_ha_page)) return;
     if (ha_page_last_tick && lv_tick_elaps(ha_page_last_tick) < 1000) return;
     ha_page_last_tick = lv_tick_get();
     char status[100];
@@ -210,15 +210,15 @@ static void sound_mic_changed(lv_event_t *e)
 static void sound_settings_open(lv_event_t *e)
 {
     (void)e;
-    lv_obj_add_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(settings_sound_page, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(settings_main, true);
+    lv_obj_set_hidden(settings_sound_page, false);
 }
 
 static void sound_settings_back(lv_event_t *e)
 {
     (void)e;
-    lv_obj_add_flag(settings_sound_page, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(settings_sound_page, true);
+    lv_obj_set_hidden(settings_main, false);
 }
 
 static lv_obj_t *screen_timeout_label;
@@ -281,16 +281,16 @@ static void screen_timeout_cycle(lv_event_t *e)
 static void screen_settings_open(lv_event_t *e)
 {
     (void)e;
-    lv_obj_add_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(settings_screen_page, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(settings_main, true);
+    lv_obj_set_hidden(settings_screen_page, false);
     dashboard_screen_touch_activity();
 }
 
 static void screen_settings_back(lv_event_t *e)
 {
     (void)e;
-    lv_obj_add_flag(settings_screen_page, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(settings_screen_page, true);
+    lv_obj_set_hidden(settings_main, false);
 }
 
 /* Keep the panel and LVGL running; only CH422G backlight enable changes.
@@ -347,8 +347,8 @@ static uint32_t wifi_connection_start;
 static void wifi_password_close(lv_event_t *e)
 {
     (void)e;
-    lv_obj_add_flag(wifi_password_page, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(settings_wifi_page, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(wifi_password_page, true);
+    lv_obj_set_hidden(settings_wifi_page, false);
     lv_textarea_set_text(wifi_password_input, "");
     wifi_connection_pending = false;
 }
@@ -381,18 +381,18 @@ static void wifi_network_selected(lv_event_t *e)
     if (index >= wifi.count || wifi.scanning) return;
     snprintf(wifi_selected_ssid, sizeof(wifi_selected_ssid), "%s", wifi.aps[index].ssid);
     wifi_selected_secure = wifi.aps[index].secure;
-    lv_obj_add_flag(settings_wifi_page, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(wifi_password_page, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(settings_wifi_page, true);
+    lv_obj_set_hidden(wifi_password_page, false);
     lv_textarea_set_text(wifi_password_input, "");
     lv_label_set_text(wifi_password_message, wifi_selected_secure ? "Введите пароль сети" : "Открытая сеть");
-    lv_obj_add_flag(wifi_password_input, wifi_selected_secure ? LV_OBJ_FLAG_CLICKABLE : LV_OBJ_FLAG_HIDDEN);
-    if (wifi_selected_secure) lv_obj_remove_flag(wifi_password_input, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_clickable(wifi_password_input, wifi_selected_secure);
+    lv_obj_set_hidden(wifi_password_input, !wifi_selected_secure);
     wifi_connection_pending = false;
 }
 
 static void wifi_password_refresh(void)
 {
-    if (!wifi_password_page || lv_obj_has_flag(wifi_password_page, LV_OBJ_FLAG_HIDDEN) ||
+    if (!wifi_password_page || lv_obj_is_hidden(wifi_password_page) ||
         !wifi_connection_pending) return;
     dash_wifi_snapshot_t wifi;
     dash_wifi_snapshot(&wifi);
@@ -412,15 +412,15 @@ static void wifi_password_refresh(void)
 static void settings_wifi_back(lv_event_t *event)
 {
     (void)event;
-    lv_obj_add_flag(settings_wifi_page, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(settings_wifi_page, true);
+    lv_obj_set_hidden(settings_main, false);
 }
 
 static void settings_wifi_open(lv_event_t *event)
 {
     (void)event;
-    lv_obj_add_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(settings_wifi_page, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(settings_main, true);
+    lv_obj_set_hidden(settings_wifi_page, false);
     wifi_page_last_tick = 0;
     wifi_list_generation = (unsigned)-1;
 }
@@ -435,7 +435,7 @@ static void settings_wifi_scan(lv_event_t *event)
 
 static void settings_wifi_refresh(void)
 {
-    if (!settings_wifi_page || lv_obj_has_flag(settings_wifi_page, LV_OBJ_FLAG_HIDDEN)) return;
+    if (!settings_wifi_page || lv_obj_is_hidden(settings_wifi_page)) return;
     if (wifi_page_last_tick && lv_tick_elaps(wifi_page_last_tick) < 1000) return;
     wifi_page_last_tick = lv_tick_get();
     dash_wifi_snapshot_t wifi;
@@ -478,7 +478,7 @@ static lv_obj_t *home_card(lv_obj_t *parent, int x, int y, int w, int h)
     lv_obj_t *o = lv_obj_create(parent);
     lv_obj_set_pos(o, x, y);
     lv_obj_set_size(o, w, h);
-    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(o, false);
     lv_obj_set_style_pad_all(o, 0, 0);
     lv_obj_set_style_border_width(o, 0, 0);
     lv_obj_set_style_radius(o, 16, 0);
@@ -527,7 +527,7 @@ void create_screen_door_cam() {
     lv_obj_set_style_bg_color(obj, lv_color_hex(0x101827), 0);
     lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
     lv_obj_set_style_pad_all(obj, 0, 0);
-    lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(obj, false);
     lv_obj_set_style_text_font(obj, &ui_font_roboto, LV_PART_MAIN | LV_STATE_DEFAULT);
     {
         lv_obj_t *parent_obj = obj;
@@ -588,8 +588,8 @@ void create_screen_door_cam() {
             objects.settings_popup = obj;
             lv_obj_set_pos(obj, 170, 25);
             lv_obj_set_size(obj, 460, 430);
-            lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_hidden(obj, true);
+            lv_obj_set_scrollable(obj, false);
             lv_obj_set_style_pad_all(obj, 0, 0);
             lv_obj_set_style_border_width(obj, 1, 0);
             lv_obj_set_style_border_color(obj, lv_color_hex(0x344b66), 0);
@@ -645,8 +645,8 @@ void create_screen_door_cam() {
             lv_obj_set_style_border_width(settings_screen_page, 0, 0);
             lv_obj_set_style_radius(settings_screen_page, 18, 0);
             lv_obj_set_style_pad_all(settings_screen_page, 12, 0);
-            lv_obj_remove_flag(settings_screen_page, LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_add_flag(settings_screen_page, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_scrollable(settings_screen_page, false);
+            lv_obj_set_hidden(settings_screen_page, true);
             lv_obj_t *screen_back = lv_button_create(settings_screen_page);
             lv_obj_set_pos(screen_back, 0, 0);
             lv_obj_set_size(screen_back, 82, 42);
@@ -684,8 +684,8 @@ void create_screen_door_cam() {
             lv_obj_set_style_border_width(settings_sound_page, 0, 0);
             lv_obj_set_style_radius(settings_sound_page, 18, 0);
             lv_obj_set_style_pad_all(settings_sound_page, 12, 0);
-            lv_obj_remove_flag(settings_sound_page, LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_add_flag(settings_sound_page, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_scrollable(settings_sound_page, false);
+            lv_obj_set_hidden(settings_sound_page, true);
             lv_obj_t *sound_back = lv_button_create(settings_sound_page);
             lv_obj_set_pos(sound_back, 0, 0);
             lv_obj_set_size(sound_back, 82, 42);
@@ -726,8 +726,8 @@ void create_screen_door_cam() {
             lv_obj_set_style_border_width(settings_ha_page, 0, 0);
             lv_obj_set_style_radius(settings_ha_page, 18, 0);
             lv_obj_set_style_pad_all(settings_ha_page, 12, 0);
-            lv_obj_remove_flag(settings_ha_page, LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_add_flag(settings_ha_page, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_scrollable(settings_ha_page, false);
+            lv_obj_set_hidden(settings_ha_page, true);
             lv_obj_t *ha_back = lv_button_create(settings_ha_page);
             lv_obj_set_pos(ha_back, 0, 0);
             lv_obj_set_size(ha_back, 82, 42);
@@ -763,8 +763,8 @@ void create_screen_door_cam() {
             lv_obj_set_style_border_width(settings_system_page, 0, 0);
             lv_obj_set_style_radius(settings_system_page, 18, 0);
             lv_obj_set_style_pad_all(settings_system_page, 12, 0);
-            lv_obj_remove_flag(settings_system_page, LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_add_flag(settings_system_page, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_scrollable(settings_system_page, false);
+            lv_obj_set_hidden(settings_system_page, true);
             lv_obj_t *system_back = lv_button_create(settings_system_page);
             lv_obj_set_pos(system_back, 0, 0);
             lv_obj_set_size(system_back, 82, 42);
@@ -790,8 +790,8 @@ void create_screen_door_cam() {
             lv_obj_set_pos(system_restart_confirm, 12, 110);
             lv_obj_set_size(system_restart_confirm, 410, 190);
             lv_obj_set_style_bg_color(system_restart_confirm, lv_color_hex(0x24354b), 0);
-            lv_obj_remove_flag(system_restart_confirm, LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_add_flag(system_restart_confirm, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_scrollable(system_restart_confirm, false);
+            lv_obj_set_hidden(system_restart_confirm, true);
             lv_obj_t *restart_prompt = home_label(system_restart_confirm, "Перезагрузить ESP32-S3?", 10, 10, &ui_font_roboto, 0xffffff);
             lv_obj_set_width(restart_prompt, 360);
             lv_obj_t *restart_cancel = lv_button_create(system_restart_confirm);
@@ -816,8 +816,8 @@ void create_screen_door_cam() {
             lv_obj_set_style_border_width(settings_wifi_page, 0, 0);
             lv_obj_set_style_radius(settings_wifi_page, 18, 0);
             lv_obj_set_style_pad_all(settings_wifi_page, 12, 0);
-            lv_obj_remove_flag(settings_wifi_page, LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_add_flag(settings_wifi_page, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_scrollable(settings_wifi_page, false);
+            lv_obj_set_hidden(settings_wifi_page, true);
             lv_obj_t *back = lv_button_create(settings_wifi_page);
             lv_obj_set_pos(back, 0, 0);
             lv_obj_set_size(back, 80, 40);
@@ -841,7 +841,7 @@ void create_screen_door_cam() {
             wifi_networks_label = home_label(settings_wifi_page, "Нажмите «Поиск сетей»", 4, 169, &ui_font_roboto, 0xb9cbe0);
             lv_obj_set_width(wifi_networks_label, 425);
             lv_label_set_long_mode(wifi_networks_label, LV_LABEL_LONG_WRAP);
-            lv_obj_add_flag(wifi_networks_label, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(wifi_networks_label, true);
             wifi_list = lv_obj_create(settings_wifi_page);
             lv_obj_set_pos(wifi_list, 0, 166);
             lv_obj_set_size(wifi_list, 430, 227);
@@ -858,8 +858,8 @@ void create_screen_door_cam() {
             lv_obj_set_style_bg_opa(wifi_password_page, LV_OPA_COVER, 0);
             lv_obj_set_style_radius(wifi_password_page, 16, 0);
             lv_obj_set_style_pad_all(wifi_password_page, 12, 0);
-            lv_obj_remove_flag(wifi_password_page, LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_add_flag(wifi_password_page, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_scrollable(wifi_password_page, false);
+            lv_obj_set_hidden(wifi_password_page, true);
             lv_obj_t *pw_back = lv_button_create(wifi_password_page);
             lv_obj_set_pos(pw_back, 0, 0);
             lv_obj_set_size(pw_back, 82, 42);
@@ -894,7 +894,7 @@ void create_screen_door_cam() {
             lv_keyboard_set_textarea(wifi_keyboard, wifi_password_input);
             lv_keyboard_set_mode(wifi_keyboard, LV_KEYBOARD_MODE_TEXT_LOWER);
             /* Keep the keyboard fixed instead of allowing container scrolling. */
-            lv_obj_remove_flag(wifi_keyboard, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_scrollable(wifi_keyboard, false);
 
         }
     }
