@@ -5,6 +5,8 @@
 #include "screens.h"
 #include "../dashboard_ha.h"
 #include "../dashboard_wifi.h"
+#include "../dashboard_board.h"
+#include "nvs.h"
 #include "images.h"
 #include "fonts.h"
 #include "actions.h"
@@ -43,6 +45,88 @@ lv_obj_t *tick_value_change_obj;
 #else
 #define HOME_CLOCK_FONT HOME_VALUE_FONT
 #endif
+static lv_obj_t *settings_screen_page;
+static lv_obj_t *screen_timeout_label;
+static uint32_t screen_last_activity;
+static uint32_t screen_timeout_ms = 60000;
+static bool screen_backlight_on = true;
+
+void dashboard_screen_touch_activity(void)
+{
+    screen_last_activity = lv_tick_get();
+    if (!screen_backlight_on) {
+        if (dashboard_board_backlight_set(true) == ESP_OK)
+            screen_backlight_on = true;
+    }
+}
+
+static void screen_settings_save(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("doorcam_screen", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u32(h, "timeout_ms", screen_timeout_ms);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+static void screen_settings_load(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("doorcam_screen", NVS_READONLY, &h) == ESP_OK) {
+        uint32_t value;
+        if (nvs_get_u32(h, "timeout_ms", &value) == ESP_OK &&
+            (value == 0 || value == 30000 || value == 60000 || value == 300000))
+            screen_timeout_ms = value;
+        nvs_close(h);
+    }
+    screen_last_activity = lv_tick_get();
+}
+
+static void screen_timeout_update_label(void)
+{
+    if (!screen_timeout_label) return;
+    const char *value = screen_timeout_ms == 0 ? "Никогда" :
+        screen_timeout_ms == 30000 ? "30 секунд" :
+        screen_timeout_ms == 60000 ? "1 минута" : "5 минут";
+    lv_label_set_text(screen_timeout_label, value);
+}
+
+static void screen_timeout_cycle(lv_event_t *e)
+{
+    (void)e;
+    screen_timeout_ms = screen_timeout_ms == 0 ? 30000 :
+        screen_timeout_ms == 30000 ? 60000 :
+        screen_timeout_ms == 60000 ? 300000 : 0;
+    screen_timeout_update_label();
+    screen_settings_save();
+    dashboard_screen_touch_activity();
+}
+
+static void screen_settings_open(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_add_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(settings_screen_page, LV_OBJ_FLAG_HIDDEN);
+    dashboard_screen_touch_activity();
+}
+
+static void screen_settings_back(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_add_flag(settings_screen_page, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void screen_settings_tick(void)
+{
+    if (screen_backlight_on && screen_timeout_ms != 0 &&
+        lv_tick_elaps(screen_last_activity) >= screen_timeout_ms) {
+        if (dashboard_board_backlight_set(false) == ESP_OK)
+            screen_backlight_on = false;
+    }
+}
+
 static lv_obj_t *home_clock_time;
 static lv_obj_t *home_clock_date;
 static lv_obj_t *home_camera_button;
@@ -239,6 +323,7 @@ static lv_obj_t *home_pending_button(lv_obj_t *parent, int x, int y, const char 
 }
 
 void create_screen_door_cam() {
+    screen_settings_load();
     lv_obj_t *obj = lv_obj_create(0);
     objects.door_cam = obj;
     lv_obj_set_pos(obj, 0, 0);
@@ -348,6 +433,7 @@ void create_screen_door_cam() {
                 lv_obj_t *arrow = home_label(button, LV_SYMBOL_RIGHT, 0, 0, LV_FONT_DEFAULT, 0x94a9c2);
                 lv_obj_align(arrow, LV_ALIGN_RIGHT_MID, -18, 0);
                 if (i == 0) lv_obj_add_event_cb(button, settings_wifi_open, LV_EVENT_CLICKED, NULL);
+                if (i == 1) lv_obj_add_event_cb(button, screen_settings_open, LV_EVENT_CLICKED, NULL);
                 switch (i) {
                     case 0: objects.obj11 = label; break;
                     case 1: objects.obj10 = button; break;
@@ -356,6 +442,41 @@ void create_screen_door_cam() {
                     case 4: objects.obj7 = button; break;
                 }
             }
+            settings_screen_page = lv_obj_create(parent_obj);
+            lv_obj_set_pos(settings_screen_page, 170, 25);
+            lv_obj_set_size(settings_screen_page, 460, 430);
+            lv_obj_set_style_bg_color(settings_screen_page, lv_color_hex(0x172234), 0);
+            lv_obj_set_style_bg_opa(settings_screen_page, LV_OPA_COVER, 0);
+            lv_obj_set_style_border_width(settings_screen_page, 0, 0);
+            lv_obj_set_style_radius(settings_screen_page, 18, 0);
+            lv_obj_set_style_pad_all(settings_screen_page, 12, 0);
+            lv_obj_remove_flag(settings_screen_page, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_add_flag(settings_screen_page, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_t *screen_back = lv_button_create(settings_screen_page);
+            lv_obj_set_pos(screen_back, 0, 0);
+            lv_obj_set_size(screen_back, 82, 42);
+            lv_obj_set_style_bg_color(screen_back, lv_color_hex(0x24354b), 0);
+            lv_obj_add_event_cb(screen_back, screen_settings_back, LV_EVENT_CLICKED, NULL);
+            lv_obj_t *screen_back_text = lv_label_create(screen_back);
+            lv_label_set_text(screen_back_text, "Назад");
+            lv_obj_center(screen_back_text);
+            lv_obj_t *screen_title = home_label(settings_screen_page, "Экран", 0, 0, &ui_font_roboto, 0x3cffde);
+            lv_obj_align(screen_title, LV_ALIGN_TOP_MID, 0, 12);
+            home_label(settings_screen_page, "Отключение подсветки", 12, 75, &ui_font_roboto, 0xffffff);
+            lv_obj_t *timeout_btn = lv_button_create(settings_screen_page);
+            lv_obj_set_pos(timeout_btn, 12, 114);
+            lv_obj_set_size(timeout_btn, 410, 55);
+            lv_obj_set_style_bg_color(timeout_btn, lv_color_hex(0x24354b), 0);
+            lv_obj_add_event_cb(timeout_btn, screen_timeout_cycle, LV_EVENT_CLICKED, NULL);
+            screen_timeout_label = lv_label_create(timeout_btn);
+            lv_obj_set_style_text_color(screen_timeout_label, lv_color_hex(0x3cffde), 0);
+            lv_obj_center(screen_timeout_label);
+            screen_timeout_update_label();
+            lv_obj_t *screen_note = home_label(settings_screen_page,
+                "Касание включает подсветку снова.", 12, 202, &ui_font_roboto, 0xb9cbe0);
+            lv_obj_set_width(screen_note, 410);
+            lv_label_set_long_mode(screen_note, LV_LABEL_LONG_WRAP);
+            home_label(settings_screen_page, "Яркость: аппаратная проверка PWM", 12, 275, &ui_font_roboto, 0x94a9c2);
             settings_wifi_page = lv_obj_create(parent_obj);
             lv_obj_set_pos(settings_wifi_page, 170, 25);
             lv_obj_set_size(settings_wifi_page, 460, 430);
@@ -449,6 +570,7 @@ void create_screen_door_cam() {
 }
 
 void tick_screen_door_cam() {
+    screen_settings_tick();
     settings_wifi_refresh();
     wifi_password_refresh();
     static uint32_t last_status_tick;
