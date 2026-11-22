@@ -22,8 +22,16 @@ static esp_netif_t *s_sta_netif;
 
 static esp_err_t start_scan_now(void)
 {
-    wifi_scan_config_t cfg = {.show_hidden = false};
-    return esp_wifi_scan_start(&cfg, false);
+    /* Short passive dwell reduces Wi-Fi/PSRAM contention during RGB scanout. */
+    wifi_scan_config_t cfg = {
+        .show_hidden = false,
+        .scan_type = WIFI_SCAN_TYPE_PASSIVE,
+        .scan_time.passive = 120,
+    };
+    ESP_LOGI(TAG, "Wi-Fi scan start (passive, 120 ms/channel)");
+    esp_err_t err = esp_wifi_scan_start(&cfg, false);
+    if (err != ESP_OK) ESP_LOGW(TAG, "Wi-Fi scan start failed: %s", esp_err_to_name(err));
+    return err;
 }
 
 
@@ -49,6 +57,7 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
             s_state.aps[i].secure = records[i].authmode != WIFI_AUTH_OPEN;
         }
         s_state.generation++;
+        ESP_LOGI(TAG, "Wi-Fi scan done: err=%s, APs=%u", esp_err_to_name(err), (unsigned)s_state.count);
         if (!s_state.connected && !s_state.connecting)
             set_status(err == ESP_OK ? "Scan complete" : "Wi-Fi scan failed");
         xSemaphoreGive(s_lock);
