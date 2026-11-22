@@ -119,10 +119,32 @@ static void screen_settings_back(lv_event_t *e)
     lv_obj_remove_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
 }
 
+/* Keep the panel and LVGL running; only CH422G backlight enable changes.
+ * A short hold prevents AI detection flicker from toggling the backlight. */
+#define SCREEN_PERSON_HOLD_MS 5000U
+
 static void screen_settings_tick(void)
 {
-    if (screen_backlight_on && screen_timeout_ms != 0 &&
-        lv_tick_elaps(screen_last_activity) >= screen_timeout_ms) {
+    static bool person_was_detected;
+    static uint32_t person_last_seen;
+    bool person_detected = dashboard_ha_person_detected();
+    uint32_t now = lv_tick_get();
+
+    if (person_detected) {
+        person_last_seen = now;
+        if (!person_was_detected || !screen_backlight_on) {
+            dashboard_screen_touch_activity();
+        }
+    } else if (person_was_detected) {
+        /* Start the configured idle timeout after detection ends. */
+        screen_last_activity = now;
+    }
+    person_was_detected = person_detected;
+
+    bool person_hold = person_detected ||
+        (person_last_seen != 0 && lv_tick_elaps(person_last_seen) < SCREEN_PERSON_HOLD_MS);
+    if (person_hold || !screen_backlight_on || screen_timeout_ms == 0) return;
+    if (lv_tick_elaps(screen_last_activity) >= screen_timeout_ms) {
         if (dashboard_board_backlight_set(false) == ESP_OK)
             screen_backlight_on = false;
     }
