@@ -7,6 +7,11 @@
 #include "../dashboard_wifi.h"
 #include "../dashboard_board.h"
 #include "nvs.h"
+#include "esp_system.h"
+#include "esp_chip_info.h"
+#include "esp_heap_caps.h"
+#include "esp_app_desc.h"
+#include "esp_idf_version.h"
 #include "images.h"
 #include "fonts.h"
 #include "actions.h"
@@ -47,6 +52,68 @@ lv_obj_t *tick_value_change_obj;
 #endif
 static lv_obj_t *settings_main;
 static lv_obj_t *settings_screen_page;
+static lv_obj_t *settings_system_page;
+static lv_obj_t *system_info_label;
+static lv_obj_t *system_restart_confirm;
+static uint32_t system_last_tick;
+
+static void system_settings_open(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_add_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(settings_system_page, LV_OBJ_FLAG_HIDDEN);
+    system_last_tick = 0;
+}
+
+static void system_settings_back(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_add_flag(settings_system_page, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void system_restart_ask(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_remove_flag(system_restart_confirm, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void system_restart_cancel(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_add_flag(system_restart_confirm, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void system_restart_now(lv_event_t *e)
+{
+    (void)e;
+    esp_restart();
+}
+
+static void system_settings_refresh(void)
+{
+    if (!settings_system_page || lv_obj_has_flag(settings_system_page, LV_OBJ_FLAG_HIDDEN)) return;
+    if (system_last_tick && lv_tick_elaps(system_last_tick) < 2000) return;
+    system_last_tick = lv_tick_get();
+    esp_chip_info_t chip;
+    esp_chip_info(&chip);
+    const esp_app_desc_t *app = esp_app_get_description();
+    size_t internal_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    size_t psram_free = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+    char info[420];
+    snprintf(info, sizeof(info),
+             "Чип: ESP32-S3, ревизия %u\\n"
+             "Прошивка: %.32s\\n"
+             "ESP-IDF: %s\\n"
+             "RAM свободно: %u КБ\\n"
+             "PSRAM свободно: %u КБ\\n"
+             "Время работы: %llu мин",
+             (unsigned)chip.revision, app->version, esp_get_idf_version(),
+             (unsigned)(internal_free / 1024), (unsigned)(psram_free / 1024),
+             (unsigned long long)(esp_timer_get_time() / 60000000ULL));
+    if (system_info_label && strcmp(lv_label_get_text(system_info_label), info))
+        lv_label_set_text(system_info_label, info);
+}
 static lv_obj_t *settings_ha_page;
 static lv_obj_t *ha_info_label;
 static uint32_t ha_page_last_tick;
@@ -560,6 +627,7 @@ void create_screen_door_cam() {
                 if (i == 1) lv_obj_add_event_cb(button, screen_settings_open, LV_EVENT_CLICKED, NULL);
                 if (i == 2) lv_obj_add_event_cb(button, sound_settings_open, LV_EVENT_CLICKED, NULL);
                 if (i == 3) lv_obj_add_event_cb(button, ha_settings_open, LV_EVENT_CLICKED, NULL);
+                if (i == 4) lv_obj_add_event_cb(button, system_settings_open, LV_EVENT_CLICKED, NULL);
                 switch (i) {
                     case 0: objects.obj11 = label; break;
                     case 1: objects.obj10 = button; break;
@@ -685,6 +753,60 @@ void create_screen_door_cam() {
                 12, 320, &ui_font_roboto, 0x94a9c2);
             lv_obj_set_width(ha_note, 410);
             lv_label_set_long_mode(ha_note, LV_LABEL_LONG_WRAP);
+
+            settings_system_page = lv_obj_create(parent_obj);
+            lv_obj_set_pos(settings_system_page, 170, 25);
+            lv_obj_set_size(settings_system_page, 460, 430);
+            lv_obj_set_style_bg_color(settings_system_page, lv_color_hex(0x172234), 0);
+            lv_obj_set_style_bg_opa(settings_system_page, LV_OPA_COVER, 0);
+            lv_obj_set_style_border_width(settings_system_page, 0, 0);
+            lv_obj_set_style_radius(settings_system_page, 18, 0);
+            lv_obj_set_style_pad_all(settings_system_page, 12, 0);
+            lv_obj_remove_flag(settings_system_page, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_add_flag(settings_system_page, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_t *system_back = lv_button_create(settings_system_page);
+            lv_obj_set_pos(system_back, 0, 0);
+            lv_obj_set_size(system_back, 82, 42);
+            lv_obj_set_style_bg_color(system_back, lv_color_hex(0x24354b), 0);
+            lv_obj_add_event_cb(system_back, system_settings_back, LV_EVENT_CLICKED, NULL);
+            lv_obj_t *system_back_text = lv_label_create(system_back);
+            lv_label_set_text(system_back_text, "Назад");
+            lv_obj_center(system_back_text);
+            lv_obj_t *system_title = home_label(settings_system_page, "Система", 0, 0, &ui_font_roboto, 0x3cffde);
+            lv_obj_align(system_title, LV_ALIGN_TOP_MID, 0, 12);
+            system_info_label = home_label(settings_system_page, "Загрузка...", 12, 72, &ui_font_roboto, 0xffffff);
+            lv_obj_set_width(system_info_label, 410);
+            lv_label_set_long_mode(system_info_label, LV_LABEL_LONG_WRAP);
+            lv_obj_t *system_restart = lv_button_create(settings_system_page);
+            lv_obj_set_pos(system_restart, 12, 300);
+            lv_obj_set_size(system_restart, 410, 48);
+            lv_obj_set_style_bg_color(system_restart, lv_color_hex(0x24354b), 0);
+            lv_obj_add_event_cb(system_restart, system_restart_ask, LV_EVENT_CLICKED, NULL);
+            lv_obj_t *system_restart_text = lv_label_create(system_restart);
+            lv_label_set_text(system_restart_text, "Перезагрузить устройство");
+            lv_obj_center(system_restart_text);
+            system_restart_confirm = lv_obj_create(settings_system_page);
+            lv_obj_set_pos(system_restart_confirm, 12, 110);
+            lv_obj_set_size(system_restart_confirm, 410, 190);
+            lv_obj_set_style_bg_color(system_restart_confirm, lv_color_hex(0x24354b), 0);
+            lv_obj_remove_flag(system_restart_confirm, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_add_flag(system_restart_confirm, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_t *restart_prompt = home_label(system_restart_confirm, "Перезагрузить ESP32-S3?", 10, 10, &ui_font_roboto, 0xffffff);
+            lv_obj_set_width(restart_prompt, 360);
+            lv_obj_t *restart_cancel = lv_button_create(system_restart_confirm);
+            lv_obj_set_pos(restart_cancel, 6, 90);
+            lv_obj_set_size(restart_cancel, 170, 48);
+            lv_obj_add_event_cb(restart_cancel, system_restart_cancel, LV_EVENT_CLICKED, NULL);
+            lv_obj_t *cancel_text = lv_label_create(restart_cancel);
+            lv_label_set_text(cancel_text, "Отмена");
+            lv_obj_center(cancel_text);
+            lv_obj_t *restart_confirm = lv_button_create(system_restart_confirm);
+            lv_obj_set_pos(restart_confirm, 188, 90);
+            lv_obj_set_size(restart_confirm, 170, 48);
+            lv_obj_add_event_cb(restart_confirm, system_restart_now, LV_EVENT_CLICKED, NULL);
+            lv_obj_t *confirm_text = lv_label_create(restart_confirm);
+            lv_label_set_text(confirm_text, "Перезагрузить");
+            lv_obj_center(confirm_text);
             settings_wifi_page = lv_obj_create(parent_obj);
             lv_obj_set_pos(settings_wifi_page, 170, 25);
             lv_obj_set_size(settings_wifi_page, 460, 430);
@@ -783,6 +905,7 @@ void tick_screen_door_cam() {
     screen_settings_tick();
     settings_wifi_refresh();
     ha_settings_refresh();
+    system_settings_refresh();
     wifi_password_refresh();
     static uint32_t last_status_tick;
     static int last_ha = -1, last_wifi = -1;
