@@ -10,6 +10,7 @@
 #include "freertos/task.h"
 #include "lvgl.h"
 #include "dashboard_board.h"
+extern void dashboard_screen_touch_activity(void);
 #include "ui.h"
 #include "eez_ui/fonts.h"
 #include "dashboard_wifi.h"
@@ -41,7 +42,7 @@ static void touch_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
     uint16_t x = last_x, y = last_y;
     bool pressed = dashboard_board_touch_read(&x, &y);
     static bool previous_pressed = false;
-    if (pressed) { last_x = x; last_y = y; }
+    if (pressed) { last_x = x; last_y = y; dashboard_screen_touch_activity(); }
     if (pressed != previous_pressed) {
         ESP_LOGI(TAG, "LVGL touch %s at x=%u y=%u",
                  pressed ? "PRESSED" : "RELEASED", last_x, last_y);
