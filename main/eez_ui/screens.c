@@ -48,6 +48,60 @@ static lv_obj_t *home_clock_date;
 static lv_obj_t *home_camera_button;
 static lv_obj_t *home_ha_status;
 static lv_obj_t *home_wifi_status;
+static lv_obj_t *settings_main;
+static lv_obj_t *settings_wifi_page;
+static lv_obj_t *wifi_info_label;
+static lv_obj_t *wifi_networks_label;
+static uint32_t wifi_page_last_tick;
+
+static void settings_wifi_back(lv_event_t *event)
+{
+    (void)event;
+    lv_obj_add_flag(settings_wifi_page, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void settings_wifi_open(lv_event_t *event)
+{
+    (void)event;
+    lv_obj_add_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(settings_wifi_page, LV_OBJ_FLAG_HIDDEN);
+    wifi_page_last_tick = 0;
+}
+
+static void settings_wifi_scan(lv_event_t *event)
+{
+    (void)event;
+    esp_err_t err = dash_wifi_scan();
+    if (err == ESP_OK) lv_label_set_text(wifi_networks_label, "Поиск сетей...");
+    else lv_label_set_text(wifi_networks_label, "Не удалось начать поиск");
+}
+
+static void settings_wifi_refresh(void)
+{
+    if (!settings_wifi_page || lv_obj_has_flag(settings_wifi_page, LV_OBJ_FLAG_HIDDEN)) return;
+    if (wifi_page_last_tick && lv_tick_elaps(wifi_page_last_tick) < 1000) return;
+    wifi_page_last_tick = lv_tick_get();
+    dash_wifi_snapshot_t wifi;
+    dash_wifi_snapshot(&wifi);
+    char status[160];
+    snprintf(status, sizeof(status), "Состояние: %s\\nIP: %s",
+             wifi.connected ? "Подключено" : (wifi.connecting ? "Подключение..." : "Нет связи"),
+             wifi.ip[0] ? wifi.ip : "--");
+    lv_label_set_text(wifi_info_label, status);
+    if (wifi.scanning) return;
+    char networks[650];
+    size_t used = 0;
+    used += snprintf(networks, sizeof(networks), "Найденные сети (%u):", wifi.count);
+    for (unsigned i = 0; i < wifi.count && used < sizeof(networks) - 64; ++i) {
+        int n = snprintf(networks + used, sizeof(networks) - used, "\\n%s  %d dBm %s",
+                         wifi.aps[i].ssid, (int)wifi.aps[i].rssi,
+                         wifi.aps[i].secure ? "*" : "");
+        if (n > 0) used += (size_t)n;
+    }
+    lv_label_set_text(wifi_networks_label, networks);
+}
+
 
 static lv_obj_t *home_card(lv_obj_t *parent, int x, int y, int w, int h)
 {
@@ -175,6 +229,7 @@ void create_screen_door_cam() {
             lv_obj_set_style_bg_color(obj, lv_color_hex(0x172234), 0);
             lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
             lv_obj_set_style_radius(obj, 18, 0);
+            settings_main = obj;
             objects.obj6 = home_label(obj, "Настройки", 0, 0, &ui_font_roboto, 0xffffff);
             lv_obj_align(objects.obj6, LV_ALIGN_TOP_MID, 0, 22);
             objects.obj5 = lv_button_create(obj);
@@ -202,6 +257,7 @@ void create_screen_door_cam() {
                 lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
                 lv_obj_t *arrow = home_label(button, LV_SYMBOL_RIGHT, 0, 0, LV_FONT_DEFAULT, 0x94a9c2);
                 lv_obj_align(arrow, LV_ALIGN_RIGHT_MID, -18, 0);
+                if (i == 0) lv_obj_add_event_cb(button, settings_wifi_open, LV_EVENT_CLICKED, NULL);
                 switch (i) {
                     case 0: objects.obj11 = label; break;
                     case 1: objects.obj10 = button; break;
@@ -210,13 +266,47 @@ void create_screen_door_cam() {
                     case 4: objects.obj7 = button; break;
                 }
             }
+            settings_wifi_page = lv_obj_create(parent_obj);
+            lv_obj_set_pos(settings_wifi_page, 170, 25);
+            lv_obj_set_size(settings_wifi_page, 460, 430);
+            lv_obj_set_style_bg_color(settings_wifi_page, lv_color_hex(0x172234), 0);
+            lv_obj_set_style_bg_opa(settings_wifi_page, LV_OPA_COVER, 0);
+            lv_obj_set_style_border_width(settings_wifi_page, 0, 0);
+            lv_obj_set_style_radius(settings_wifi_page, 18, 0);
+            lv_obj_set_style_pad_all(settings_wifi_page, 12, 0);
+            lv_obj_remove_flag(settings_wifi_page, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_add_flag(settings_wifi_page, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_t *back = lv_button_create(settings_wifi_page);
+            lv_obj_set_pos(back, 0, 0);
+            lv_obj_set_size(back, 80, 40);
+            lv_obj_set_style_bg_color(back, lv_color_hex(0x24354b), 0);
+            lv_obj_add_event_cb(back, settings_wifi_back, LV_EVENT_CLICKED, NULL);
+            lv_obj_t *back_label = lv_label_create(back);
+            lv_label_set_text(back_label, "Назад");
+            lv_obj_center(back_label);
+            lv_obj_t *wifi_title = home_label(settings_wifi_page, "Wi-Fi", 0, 0, &ui_font_roboto, 0x3cffde);
+            lv_obj_align(wifi_title, LV_ALIGN_TOP_MID, 0, 12);
+            wifi_info_label = home_label(settings_wifi_page, "Состояние: --", 4, 55, &ui_font_roboto, 0xffffff);
+            lv_obj_t *scan = lv_button_create(settings_wifi_page);
+            lv_obj_set_pos(scan, 4, 113);
+            lv_obj_set_size(scan, 425, 44);
+            lv_obj_set_style_bg_color(scan, lv_color_hex(0x24354b), 0);
+            lv_obj_add_event_cb(scan, settings_wifi_scan, LV_EVENT_CLICKED, NULL);
+            lv_obj_t *scan_label = lv_label_create(scan);
+            lv_label_set_text(scan_label, "Поиск сетей");
+            lv_obj_set_style_text_color(scan_label, lv_color_hex(0x3cffde), 0);
+            lv_obj_center(scan_label);
+            wifi_networks_label = home_label(settings_wifi_page, "Нажмите «Поиск сетей»", 4, 169, &ui_font_roboto, 0xb9cbe0);
+            lv_obj_set_width(wifi_networks_label, 425);
+            lv_label_set_long_mode(wifi_networks_label, LV_LABEL_LONG_WRAP);
         }
     }
-    
+
     tick_screen_door_cam();
 }
 
 void tick_screen_door_cam() {
+    settings_wifi_refresh();
     static uint32_t last_status_tick;
     static int last_ha = -1, last_wifi = -1;
     if (home_ha_status && home_wifi_status &&
