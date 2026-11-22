@@ -53,6 +53,8 @@ static void touch_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
     data->state = pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
 }
 
+static void dashboard_start_network(void);
+
 static void dashboard_lvgl_task(void *arg)
 {
     (void)arg;
@@ -117,6 +119,8 @@ static void dashboard_lvgl_task(void *arg)
         lv_timer_handler();
         vTaskDelay(pdMS_TO_TICKS(10));
     }
+    ESP_LOGI(TAG, "RGB diagnostic: splash completed with Wi-Fi not yet initialized");
+    dashboard_start_network();
     ui_init();
     if (lv_screen_active() != splash) lv_obj_delete(splash);
     ESP_LOGI(TAG, "LVGL UI created; Wi-Fi settings available");
@@ -155,22 +159,29 @@ static void dashboard_ha_start_task(void *arg)
     vTaskDelete(NULL);
 }
 
+static void dashboard_start_network(void)
+{
+    ESP_LOGI(TAG, "RGB diagnostic: starting Wi-Fi after splash");
+    esp_err_t wifi_err = dash_wifi_init();
+    if (wifi_err != ESP_OK) {
+        ESP_LOGE(TAG, "Wi-Fi init failed: %s", esp_err_to_name(wifi_err));
+        return;
+    }
+    esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    esp_sntp_setservername(0, "pool.ntp.org");
+    esp_sntp_setservername(1, "time.google.com");
+    esp_sntp_init();
+    esp_err_t web_err = dashboard_ha_web_start();
+    if (web_err != ESP_OK) ESP_LOGE(TAG, "HA web setup failed: %s", esp_err_to_name(web_err));
+    if (xTaskCreate(dashboard_ha_start_task, "ha_start", 4096, NULL, 4, NULL) != pdPASS)
+        ESP_LOGE(TAG, "Failed to create HA startup task");
+}
+
 void app_main(void)
 {
-    esp_err_t wifi_err = dash_wifi_init();
-    if (wifi_err != ESP_OK) ESP_LOGE(TAG, "Wi-Fi init failed: %s", esp_err_to_name(wifi_err));
     setenv("TZ", "MSK-3", 1);
     tzset();
-    if (wifi_err == ESP_OK) {
-        esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
-        esp_sntp_setservername(0, "pool.ntp.org");
-        esp_sntp_setservername(1, "time.google.com");
-        esp_sntp_init();
-        esp_err_t web_err = dashboard_ha_web_start();
-        if (web_err != ESP_OK) ESP_LOGE(TAG, "HA web setup failed: %s", esp_err_to_name(web_err));
-        if (xTaskCreate(dashboard_ha_start_task, "ha_start", 4096, NULL, 4, NULL) != pdPASS)
-            ESP_LOGE(TAG, "Failed to create HA startup task");
-    }
+    ESP_LOGI(TAG, "RGB diagnostic: display and splash first; network starts afterwards");
     BaseType_t ok = xTaskCreatePinnedToCore(dashboard_lvgl_task, "dashboard_lvgl",
                                             16384, NULL, 7, NULL, 1);
     if (ok != pdPASS) ESP_LOGE(TAG, "Failed to create LVGL task");
