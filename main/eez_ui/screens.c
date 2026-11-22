@@ -47,6 +47,56 @@ lv_obj_t *tick_value_change_obj;
 #endif
 static lv_obj_t *settings_main;
 static lv_obj_t *settings_screen_page;
+static lv_obj_t *settings_ha_page;
+static lv_obj_t *ha_info_label;
+static uint32_t ha_page_last_tick;
+
+static void ha_settings_open(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_add_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(settings_ha_page, LV_OBJ_FLAG_HIDDEN);
+    ha_page_last_tick = 0;
+}
+
+static void ha_settings_back(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_add_flag(settings_ha_page, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void ha_settings_test(lv_event_t *e)
+{
+    (void)e;
+    esp_err_t err = dashboard_ha_auth_test();
+    if (err != ESP_OK && ha_info_label)
+        lv_label_set_text_fmt(ha_info_label, "Проверка не запущена: %s", esp_err_to_name(err));
+    ha_page_last_tick = 0;
+}
+
+static void ha_settings_refresh(void)
+{
+    if (!settings_ha_page || lv_obj_has_flag(settings_ha_page, LV_OBJ_FLAG_HIDDEN)) return;
+    if (ha_page_last_tick && lv_tick_elaps(ha_page_last_tick) < 1000) return;
+    ha_page_last_tick = lv_tick_get();
+    char status[100];
+    dashboard_ha_status(status, sizeof(status));
+    char code[20];
+    dashboard_ha_setup_code(code, sizeof(code));
+    char info[360];
+    snprintf(info, sizeof(info),
+             "Сервер: 192.168.0.215:8123\\n"
+             "Соединение: %s\\n"
+             "Токен: %s\\n"
+             "Код настройки: %s\\n"
+             "Проверка: %s",
+             dashboard_ha_is_connected() ? "подключено" : "нет связи",
+             dashboard_ha_has_token() ? "сохранён" : "не задан",
+             code, status);
+    if (ha_info_label && strcmp(lv_label_get_text(ha_info_label), info))
+        lv_label_set_text(ha_info_label, info);
+}
 static lv_obj_t *settings_sound_page;
 static lv_obj_t *sound_volume_label;
 static lv_obj_t *sound_mic_label;
@@ -509,6 +559,7 @@ void create_screen_door_cam() {
                 if (i == 0) lv_obj_add_event_cb(button, settings_wifi_open, LV_EVENT_CLICKED, NULL);
                 if (i == 1) lv_obj_add_event_cb(button, screen_settings_open, LV_EVENT_CLICKED, NULL);
                 if (i == 2) lv_obj_add_event_cb(button, sound_settings_open, LV_EVENT_CLICKED, NULL);
+                if (i == 3) lv_obj_add_event_cb(button, ha_settings_open, LV_EVENT_CLICKED, NULL);
                 switch (i) {
                     case 0: objects.obj11 = label; break;
                     case 1: objects.obj10 = button; break;
@@ -597,6 +648,43 @@ void create_screen_door_cam() {
                 12, 300, &ui_font_roboto, 0x94a9c2);
             lv_obj_set_width(sound_note, 410);
             lv_label_set_long_mode(sound_note, LV_LABEL_LONG_WRAP);
+
+            settings_ha_page = lv_obj_create(parent_obj);
+            lv_obj_set_pos(settings_ha_page, 170, 25);
+            lv_obj_set_size(settings_ha_page, 460, 430);
+            lv_obj_set_style_bg_color(settings_ha_page, lv_color_hex(0x172234), 0);
+            lv_obj_set_style_bg_opa(settings_ha_page, LV_OPA_COVER, 0);
+            lv_obj_set_style_border_width(settings_ha_page, 0, 0);
+            lv_obj_set_style_radius(settings_ha_page, 18, 0);
+            lv_obj_set_style_pad_all(settings_ha_page, 12, 0);
+            lv_obj_remove_flag(settings_ha_page, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_add_flag(settings_ha_page, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_t *ha_back = lv_button_create(settings_ha_page);
+            lv_obj_set_pos(ha_back, 0, 0);
+            lv_obj_set_size(ha_back, 82, 42);
+            lv_obj_set_style_bg_color(ha_back, lv_color_hex(0x24354b), 0);
+            lv_obj_add_event_cb(ha_back, ha_settings_back, LV_EVENT_CLICKED, NULL);
+            lv_obj_t *ha_back_text = lv_label_create(ha_back);
+            lv_label_set_text(ha_back_text, "Назад");
+            lv_obj_center(ha_back_text);
+            lv_obj_t *ha_title = home_label(settings_ha_page, "Home Assistant", 0, 0, &ui_font_roboto, 0x3cffde);
+            lv_obj_align(ha_title, LV_ALIGN_TOP_MID, 0, 12);
+            ha_info_label = home_label(settings_ha_page, "Загрузка...", 12, 68, &ui_font_roboto, 0xffffff);
+            lv_obj_set_width(ha_info_label, 410);
+            lv_label_set_long_mode(ha_info_label, LV_LABEL_LONG_WRAP);
+            lv_obj_t *ha_test = lv_button_create(settings_ha_page);
+            lv_obj_set_pos(ha_test, 12, 257);
+            lv_obj_set_size(ha_test, 410, 46);
+            lv_obj_set_style_bg_color(ha_test, lv_color_hex(0x24354b), 0);
+            lv_obj_add_event_cb(ha_test, ha_settings_test, LV_EVENT_CLICKED, NULL);
+            lv_obj_t *ha_test_text = lv_label_create(ha_test);
+            lv_label_set_text(ha_test_text, "Проверить токен");
+            lv_obj_center(ha_test_text);
+            lv_obj_t *ha_note = home_label(settings_ha_page,
+                "Токен: откройте IP панели в браузере и введите код выше.",
+                12, 320, &ui_font_roboto, 0x94a9c2);
+            lv_obj_set_width(ha_note, 410);
+            lv_label_set_long_mode(ha_note, LV_LABEL_LONG_WRAP);
             settings_wifi_page = lv_obj_create(parent_obj);
             lv_obj_set_pos(settings_wifi_page, 170, 25);
             lv_obj_set_size(settings_wifi_page, 460, 430);
@@ -694,6 +782,7 @@ void create_screen_door_cam() {
 void tick_screen_door_cam() {
     screen_settings_tick();
     settings_wifi_refresh();
+    ha_settings_refresh();
     wifi_password_refresh();
     static uint32_t last_status_tick;
     static int last_ha = -1, last_wifi = -1;
