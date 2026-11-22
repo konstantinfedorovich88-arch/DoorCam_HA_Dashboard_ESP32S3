@@ -11,6 +11,8 @@
 static const char *TAG = "DASH_BOARD";
 static esp_lcd_panel_handle_t s_panel;
 static i2c_master_bus_handle_t s_i2c_bus;
+static i2c_master_dev_handle_t s_backlight_dev;
+static uint8_t s_expander_output = 0x06;
 
 /* Waveshare ESP32-S3-Touch-LCD-7 (not 7B). Verify PCB revision against
  * Waveshare schematic before relying on this provisional pin map. */
@@ -39,8 +41,8 @@ static esp_err_t enable_backlight(void)
     ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(s_i2c_bus, &out_cfg, &out), TAG, "CH422G output");
     uint8_t mode = 0x01;
     ESP_RETURN_ON_ERROR(i2c_master_transmit(sys, &mode, 1, 100), TAG, "CH422G configure");
-    uint8_t output = 0x06;
-    ESP_RETURN_ON_ERROR(i2c_master_transmit(out, &output, 1, 100), TAG, "backlight");
+    s_backlight_dev = out;
+    ESP_RETURN_ON_ERROR(i2c_master_transmit(out, &s_expander_output, 1, 100), TAG, "backlight");
     return ESP_OK;
 }
 
@@ -85,6 +87,15 @@ esp_err_t dashboard_board_init(void)
     }
     ESP_LOGI(TAG, "RGB startup background ready");
     return ESP_OK;
+}
+
+esp_err_t dashboard_board_backlight_set(bool enabled)
+{
+    if (!s_backlight_dev) return ESP_ERR_INVALID_STATE;
+    uint8_t output = enabled ? (s_expander_output | 0x04) : (s_expander_output & (uint8_t)~0x04);
+    esp_err_t err = i2c_master_transmit(s_backlight_dev, &output, 1, 100);
+    if (err == ESP_OK) s_expander_output = output;
+    return err;
 }
 
 esp_lcd_panel_handle_t dashboard_board_panel(void)
