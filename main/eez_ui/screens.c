@@ -183,7 +183,8 @@ void create_screen_door_cam() {
             lv_obj_set_style_bg_color(objects.obj5, lv_color_hex(0x24354b), 0);
             lv_obj_add_event_cb(objects.obj5, action_close_settings, LV_EVENT_CLICKED, NULL);
             lv_obj_t *close = lv_label_create(objects.obj5);
-            lv_label_set_text(close, LV_SYMBOL_CLOSE);
+            lv_label_set_text(close, "X");
+            lv_obj_set_style_text_font(close, &ui_font_roboto, 0);
             lv_obj_set_style_text_color(close, lv_color_hex(0xf87171), 0);
             lv_obj_center(close);
             const char *titles[] = {"Wi-Fi", "Экран", "Звук", "Home Assistant", "Система"};
