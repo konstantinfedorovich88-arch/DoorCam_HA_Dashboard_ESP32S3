@@ -45,6 +45,7 @@ lv_obj_t *tick_value_change_obj;
 #else
 #define HOME_CLOCK_FONT HOME_VALUE_FONT
 #endif
+static lv_obj_t *settings_main;
 static lv_obj_t *settings_screen_page;
 static lv_obj_t *screen_timeout_label;
 static uint32_t screen_last_activity;
@@ -132,7 +133,6 @@ static lv_obj_t *home_clock_date;
 static lv_obj_t *home_camera_button;
 static lv_obj_t *home_ha_status;
 static lv_obj_t *home_wifi_status;
-static lv_obj_t *settings_main;
 static lv_obj_t *settings_wifi_page;
 static lv_obj_t *wifi_info_label;
 static lv_obj_t *wifi_networks_label;
