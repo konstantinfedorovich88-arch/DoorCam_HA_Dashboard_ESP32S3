@@ -374,10 +374,6 @@ void create_screen_door_cam() {
         home_clock_time = home_label(clock, "--:--", 16, 32, HOME_CLOCK_FONT, 0x4ade80);
         home_clock_date = home_label(clock, "--.--.----", 16, 100, &ui_font_roboto, 0xb9cbe0);
         lv_obj_align(home_clock_time, LV_ALIGN_CENTER, 0, -12);
-        lv_obj_set_style_transform_pivot_x(home_clock_time, LV_PCT(50), 0);
-        lv_obj_set_style_transform_pivot_y(home_clock_time, LV_PCT(50), 0);
-        lv_obj_set_style_transform_scale_x(home_clock_time, 400, 0);
-        lv_obj_set_style_transform_scale_y(home_clock_time, 650, 0);
         lv_obj_align(home_clock_date, LV_ALIGN_BOTTOM_MID, 0, -3);
         lv_obj_set_style_text_align(home_clock_time, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_align(home_clock_date, LV_TEXT_ALIGN_CENTER, 0);
@@ -584,6 +580,8 @@ void create_screen_door_cam() {
             lv_obj_set_size(wifi_keyboard, 672, 308);
             lv_keyboard_set_textarea(wifi_keyboard, wifi_password_input);
             lv_keyboard_set_mode(wifi_keyboard, LV_KEYBOARD_MODE_TEXT_LOWER);
+            /* Keep the keyboard fixed instead of allowing container scrolling. */
+            lv_obj_remove_flag(wifi_keyboard, LV_OBJ_FLAG_SCROLLABLE);
 
         }
     }
