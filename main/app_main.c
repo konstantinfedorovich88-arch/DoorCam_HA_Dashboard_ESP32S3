@@ -115,11 +115,17 @@ static void dashboard_lvgl_task(void *arg)
     lv_obj_set_style_text_color(loading, lv_color_hex(0xb9cbe0), 0);
     lv_obj_align(loading, LV_ALIGN_CENTER, 0, 95);
     uint32_t splash_start = lv_tick_get();
-    while (lv_tick_elaps(splash_start) < 3000) {
+    ESP_LOGI(TAG, "RGB diagnostic: 10-second splash begins (Wi-Fi OFF)");
+    bool three_seconds_logged = false;
+    while (lv_tick_elaps(splash_start) < 10000) {
+        if (!three_seconds_logged && lv_tick_elaps(splash_start) >= 3000) {
+            three_seconds_logged = true;
+            ESP_LOGI(TAG, "RGB diagnostic: splash at 3 seconds, Wi-Fi still OFF");
+        }
         lv_timer_handler();
         vTaskDelay(pdMS_TO_TICKS(10));
     }
-    ESP_LOGI(TAG, "RGB diagnostic: splash completed with Wi-Fi not yet initialized");
+    ESP_LOGI(TAG, "RGB diagnostic: splash at 10 seconds, Wi-Fi still OFF; starting network next");
     dashboard_start_network();
     ui_init();
     if (lv_screen_active() != splash) lv_obj_delete(splash);
