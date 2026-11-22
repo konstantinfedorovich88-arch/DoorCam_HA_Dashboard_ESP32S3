@@ -103,17 +103,23 @@ static void dashboard_lvgl_task(void *arg)
     lv_label_set_text(welcome, "Вас приветствует");
     lv_obj_set_style_text_font(welcome, &ui_font_roboto, 0);
     lv_obj_set_style_text_color(welcome, lv_color_hex(0xffffff), 0);
-    lv_obj_align(welcome, LV_ALIGN_CENTER, 0, -35);
+    /* Double the rendered Cyrillic font without changing the shared UI font. */
+    lv_obj_set_style_transform_scale(welcome, 512, 0);
+    lv_obj_align(welcome, LV_ALIGN_CENTER, 0, -100);
     lv_obj_t *home = lv_label_create(splash);
     lv_label_set_text(home, "умный дом");
     lv_obj_set_style_text_font(home, &ui_font_roboto, 0);
     lv_obj_set_style_text_color(home, lv_color_hex(0x4ade80), 0);
+    /* Double the rendered Cyrillic font without changing the shared UI font. */
+    lv_obj_set_style_transform_scale(home, 512, 0);
     lv_obj_align(home, LV_ALIGN_CENTER, 0, 15);
     lv_obj_t *loading = lv_label_create(splash);
     lv_label_set_text(loading, "Загрузка системы...");
     lv_obj_set_style_text_font(loading, &ui_font_roboto, 0);
     lv_obj_set_style_text_color(loading, lv_color_hex(0xb9cbe0), 0);
-    lv_obj_align(loading, LV_ALIGN_CENTER, 0, 95);
+    /* Double the rendered Cyrillic font without changing the shared UI font. */
+    lv_obj_set_style_transform_scale(loading, 512, 0);
+    lv_obj_align(loading, LV_ALIGN_CENTER, 0, 120);
     uint32_t splash_start = lv_tick_get();
     ESP_LOGI(TAG, "RGB diagnostic: 10-second splash begins (Wi-Fi OFF)");
     bool three_seconds_logged = false;
