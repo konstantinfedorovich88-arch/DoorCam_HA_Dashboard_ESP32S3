@@ -1,6 +1,7 @@
 #include "dashboard_ha.h"
 #include "esp_websocket_client.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "nvs.h"
 #include "cJSON.h"
 #include "freertos/FreeRTOS.h"
@@ -194,8 +195,6 @@ static void process_message(char *message)
         ESP_LOGI(TAG,"Home Assistant WebSocket authenticated");
         const char *subscribe="{\"id\":1,\"type\":\"subscribe_events\",\"event_type\":\"state_changed\"}";
         esp_websocket_client_send_text(s_ws,subscribe,strlen(subscribe),pdMS_TO_TICKS(1000));
-        const char *get_states="{\"id\":2,\"type\":\"get_states\"}";
-        esp_websocket_client_send_text(s_ws,get_states,strlen(get_states),pdMS_TO_TICKS(1000));
         const char *get_panel="{\"id\":3,\"type\":\"lovelace/config\",\"url_path\":\"doorcam-panel\"}";
         esp_websocket_client_send_text(s_ws,get_panel,strlen(get_panel),pdMS_TO_TICKS(1000));
     } else if (!strcmp(type->valuestring,"auth_invalid")) {
@@ -206,17 +205,27 @@ static void process_message(char *message)
         if (cJSON_IsNumber(id) && id->valueint==3) {
             if (cJSON_IsTrue(success)) {
                 parse_panel_config(cJSON_GetObjectItemCaseSensitive(root,"result"));
-                const char *refresh="{\"id\":4,\"type\":\"get_states\"}";
-                esp_websocket_client_send_text(s_ws,refresh,strlen(refresh),pdMS_TO_TICKS(1000));
             }
             else ESP_LOGW(TAG,"DoorCam Panel config unavailable (check dashboard URL path and permissions)");
+            /* Request the full state snapshot only once, after panel config.
+             * Previously auth_ok and panel config both requested large JSON
+             * snapshots, increasing PSRAM traffic during RGB scanout. */
+            const char *states_request="{\"id\":4,\"type\":\"get_states\"}";
+            ESP_LOGI(TAG,"Requesting one initial HA state snapshot");
+            esp_websocket_client_send_text(s_ws,states_request,strlen(states_request),pdMS_TO_TICKS(1000));
         }
         if (cJSON_IsNumber(id) && (id->valueint==2 || id->valueint==4) && cJSON_IsTrue(success)) {
             cJSON *states=cJSON_GetObjectItemCaseSensitive(root,"result");
             if (cJSON_IsArray(states)) {
+                int64_t started_us = esp_timer_get_time();
+                unsigned processed = 0;
                 cJSON *item=NULL;
-                cJSON_ArrayForEach(item,states) parse_state(item);
-                ESP_LOGI(TAG,"Initial Home Assistant entity states received");
+                cJSON_ArrayForEach(item,states) {
+                    parse_state(item);
+                    processed++;
+                }
+                ESP_LOGI(TAG,"HA states processed: %u, elapsed=%lld ms",
+                         processed, (long long)((esp_timer_get_time()-started_us)/1000));
             }
         }
     } else if (!strcmp(type->valuestring,"event")) {
