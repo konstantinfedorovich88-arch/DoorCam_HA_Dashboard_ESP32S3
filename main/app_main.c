@@ -137,10 +137,18 @@ static void dashboard_lvgl_task(void *arg)
     if (lv_screen_active() != splash) lv_obj_delete(splash);
     ESP_LOGI(TAG, "LVGL UI created; Wi-Fi settings available");
 
+    /* UI data/status polling does not need to run at the display handler rate.
+     * Keep LVGL input/timers responsive while reducing repeated HA mutex and
+     * Wi-Fi snapshot reads during continuous RGB DMA scanout. */
+    uint32_t last_ui_poll = lv_tick_get() - 100;
     while (true) {
-        ui_tick();
+        uint32_t now_ms = lv_tick_get();
+        if (lv_tick_elaps(last_ui_poll) >= 100) {
+            last_ui_poll = now_ms;
+            ui_tick();
+        }
         uint32_t wait_ms = lv_timer_handler();
-        /* Keep touch and keyboard latency low without busy-spinning LVGL. */
+        /* Preserve responsive touch/keyboard and LVGL animation timers. */
         if (wait_ms < 3) wait_ms = 3;
         if (wait_ms > 5) wait_ms = 5;
         vTaskDelay(pdMS_TO_TICKS(wait_ms));
