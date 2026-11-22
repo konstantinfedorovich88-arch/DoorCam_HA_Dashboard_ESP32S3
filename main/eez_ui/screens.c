@@ -164,7 +164,8 @@ static void settings_wifi_refresh(void)
     snprintf(status, sizeof(status), "Состояние: %s\nIP: %s",
              wifi.connected ? "Подключено" : (wifi.connecting ? "Подключение..." : "Нет связи"),
              wifi.ip[0] ? wifi.ip : "--");
-    lv_label_set_text(wifi_info_label, status);
+    if (strcmp(lv_label_get_text(wifi_info_label), status) != 0)
+        lv_label_set_text(wifi_info_label, status);
     if (wifi.scanning) return;
     if (wifi_list_generation == wifi.generation) return;
     wifi_list_generation = wifi.generation;
@@ -423,6 +424,8 @@ void create_screen_door_cam() {
             lv_obj_set_size(wifi_password_input, 530, 46);
             lv_textarea_set_one_line(wifi_password_input, true);
             lv_textarea_set_password_mode(wifi_password_input, true);
+            /* Mask immediately instead of repeatedly showing each typed character. */
+            lv_textarea_set_password_show_time(wifi_password_input, 0);
             lv_textarea_set_max_length(wifi_password_input, 63);
             lv_textarea_set_placeholder_text(wifi_password_input, "Пароль Wi-Fi");
             lv_obj_t *connect = lv_button_create(wifi_password_page);
