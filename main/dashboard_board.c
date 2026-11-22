@@ -61,7 +61,7 @@ esp_err_t dashboard_board_init(void)
         .data_width = 16,
         .num_fbs = 1,
         /* Reduce RGB DMA pressure on PSRAM during Wi-Fi and UI redraws. */
-        .bounce_buffer_size_px = LCD_W * 32,
+        .bounce_buffer_size_px = LCD_W * 20,
         .hsync_gpio_num = 46, .vsync_gpio_num = 3,
         .de_gpio_num = 5, .pclk_gpio_num = 7,
         .disp_gpio_num = -1,
@@ -69,7 +69,7 @@ esp_err_t dashboard_board_init(void)
                           48, 47, 21, 1, 2, 42, 41, 40},
         .flags.fb_in_psram = true,
     };
-    ESP_LOGI(TAG, "RGB diagnostic: PCLK=12MHz, bounce=%u lines, PSRAM framebuffer", 32U);
+    ESP_LOGI(TAG, "RGB diagnostic: PCLK=12MHz, bounce=%u lines, PSRAM framebuffer", 20U);
     ESP_RETURN_ON_ERROR(esp_lcd_new_rgb_panel(&cfg, &s_panel), TAG, "RGB panel create");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(s_panel), TAG, "RGB reset");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_init(s_panel), TAG, "RGB init");
