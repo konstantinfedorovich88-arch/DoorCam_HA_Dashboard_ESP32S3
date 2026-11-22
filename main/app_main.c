@@ -105,6 +105,9 @@ static void dashboard_lvgl_task(void *arg)
     lv_obj_set_style_text_color(welcome, lv_color_hex(0xffffff), 0);
     /* Double the rendered Cyrillic font without changing the shared UI font. */
     lv_obj_set_style_transform_scale(welcome, 512, 0);
+    /* Scale around the label centre, not its top-left corner. */
+    lv_obj_set_style_transform_pivot_x(welcome, lv_pct(50), 0);
+    lv_obj_set_style_transform_pivot_y(welcome, lv_pct(50), 0);
     lv_obj_align(welcome, LV_ALIGN_CENTER, 0, -100);
     lv_obj_t *home = lv_label_create(splash);
     lv_label_set_text(home, "умный дом");
@@ -112,6 +115,9 @@ static void dashboard_lvgl_task(void *arg)
     lv_obj_set_style_text_color(home, lv_color_hex(0x4ade80), 0);
     /* Double the rendered Cyrillic font without changing the shared UI font. */
     lv_obj_set_style_transform_scale(home, 512, 0);
+    /* Scale around the label centre, not its top-left corner. */
+    lv_obj_set_style_transform_pivot_x(home, lv_pct(50), 0);
+    lv_obj_set_style_transform_pivot_y(home, lv_pct(50), 0);
     lv_obj_align(home, LV_ALIGN_CENTER, 0, 15);
     lv_obj_t *loading = lv_label_create(splash);
     lv_label_set_text(loading, "Загрузка системы...");
@@ -119,6 +125,9 @@ static void dashboard_lvgl_task(void *arg)
     lv_obj_set_style_text_color(loading, lv_color_hex(0xb9cbe0), 0);
     /* Double the rendered Cyrillic font without changing the shared UI font. */
     lv_obj_set_style_transform_scale(loading, 512, 0);
+    /* Scale around the label centre, not its top-left corner. */
+    lv_obj_set_style_transform_pivot_x(loading, lv_pct(50), 0);
+    lv_obj_set_style_transform_pivot_y(loading, lv_pct(50), 0);
     lv_obj_align(loading, LV_ALIGN_CENTER, 0, 120);
     uint32_t splash_start = lv_tick_get();
     ESP_LOGI(TAG, "RGB diagnostic: 10-second splash begins (Wi-Fi OFF)");
