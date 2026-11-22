@@ -53,6 +53,81 @@ static lv_obj_t *settings_wifi_page;
 static lv_obj_t *wifi_info_label;
 static lv_obj_t *wifi_networks_label;
 static uint32_t wifi_page_last_tick;
+static unsigned wifi_list_generation = (unsigned)-1;
+static lv_obj_t *wifi_list;
+static lv_obj_t *wifi_password_page;
+static lv_obj_t *wifi_password_input;
+static lv_obj_t *wifi_password_message;
+static lv_obj_t *wifi_keyboard;
+static char wifi_selected_ssid[33];
+static bool wifi_selected_secure;
+static bool wifi_connection_pending;
+static uint32_t wifi_connection_start;
+
+static void wifi_password_close(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_add_flag(wifi_password_page, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(settings_wifi_page, LV_OBJ_FLAG_HIDDEN);
+    lv_textarea_set_text(wifi_password_input, "");
+    wifi_connection_pending = false;
+}
+
+static void wifi_connect_submit(lv_event_t *e)
+{
+    (void)e;
+    const char *password = wifi_selected_secure ? lv_textarea_get_text(wifi_password_input) : "";
+    size_t length = strlen(password);
+    if (wifi_selected_secure && (length < 8 || length > 63)) {
+        lv_label_set_text(wifi_password_message, "Пароль: от 8 до 63 символов");
+        return;
+    }
+    esp_err_t err = dash_wifi_connect(wifi_selected_ssid, password);
+    lv_textarea_set_text(wifi_password_input, "");
+    if (err != ESP_OK) {
+        lv_label_set_text(wifi_password_message, "Ошибка запуска подключения");
+        return;
+    }
+    lv_label_set_text(wifi_password_message, "Подключение...");
+    wifi_connection_pending = true;
+    wifi_connection_start = lv_tick_get();
+}
+
+static void wifi_network_selected(lv_event_t *e)
+{
+    unsigned index = (unsigned)(uintptr_t)lv_event_get_user_data(e);
+    dash_wifi_snapshot_t wifi;
+    dash_wifi_snapshot(&wifi);
+    if (index >= wifi.count || wifi.scanning) return;
+    snprintf(wifi_selected_ssid, sizeof(wifi_selected_ssid), "%s", wifi.aps[index].ssid);
+    wifi_selected_secure = wifi.aps[index].secure;
+    lv_obj_add_flag(settings_wifi_page, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(wifi_password_page, LV_OBJ_FLAG_HIDDEN);
+    lv_textarea_set_text(wifi_password_input, "");
+    lv_label_set_text(wifi_password_message, wifi_selected_secure ? "Введите пароль сети" : "Открытая сеть");
+    lv_obj_add_flag(wifi_password_input, wifi_selected_secure ? LV_OBJ_FLAG_CLICKABLE : LV_OBJ_FLAG_HIDDEN);
+    if (wifi_selected_secure) lv_obj_remove_flag(wifi_password_input, LV_OBJ_FLAG_HIDDEN);
+    wifi_connection_pending = false;
+}
+
+static void wifi_password_refresh(void)
+{
+    if (!wifi_password_page || lv_obj_has_flag(wifi_password_page, LV_OBJ_FLAG_HIDDEN) ||
+        !wifi_connection_pending) return;
+    dash_wifi_snapshot_t wifi;
+    dash_wifi_snapshot(&wifi);
+    if (wifi.connected) {
+        lv_label_set_text(wifi_password_message, "Подключено! Нажмите Назад");
+        wifi_connection_pending = false;
+    } else if (!wifi.connecting && lv_tick_elaps(wifi_connection_start) > 3000) {
+        lv_label_set_text(wifi_password_message, "Нет соединения. Проверьте пароль");
+        wifi_connection_pending = false;
+    } else if (lv_tick_elaps(wifi_connection_start) > 20000) {
+        lv_label_set_text(wifi_password_message, "Ожидание сети. Проверьте пароль");
+        wifi_connection_pending = false;
+    }
+}
+
 
 static void settings_wifi_back(lv_event_t *event)
 {
@@ -67,6 +142,7 @@ static void settings_wifi_open(lv_event_t *event)
     lv_obj_add_flag(settings_main, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(settings_wifi_page, LV_OBJ_FLAG_HIDDEN);
     wifi_page_last_tick = 0;
+    wifi_list_generation = (unsigned)-1;
 }
 
 static void settings_wifi_scan(lv_event_t *event)
@@ -90,16 +166,29 @@ static void settings_wifi_refresh(void)
              wifi.ip[0] ? wifi.ip : "--");
     lv_label_set_text(wifi_info_label, status);
     if (wifi.scanning) return;
-    char networks[650];
-    size_t used = 0;
-    used += snprintf(networks, sizeof(networks), "Найденные сети (%u):", wifi.count);
-    for (unsigned i = 0; i < wifi.count && used < sizeof(networks) - 64; ++i) {
-        int n = snprintf(networks + used, sizeof(networks) - used, "\n%s  %d dBm %s",
-                         wifi.aps[i].ssid, (int)wifi.aps[i].rssi,
-                         wifi.aps[i].secure ? "*" : "");
-        if (n > 0) used += (size_t)n;
+    if (wifi_list_generation == wifi.generation) return;
+    wifi_list_generation = wifi.generation;
+    lv_obj_clean(wifi_list);
+    for (unsigned i = 0; i < wifi.count; i++) {
+        lv_obj_t *button = lv_button_create(wifi_list);
+        lv_obj_set_width(button, lv_pct(100));
+        lv_obj_set_height(button, 43);
+        lv_obj_set_style_bg_color(button, lv_color_hex(0x24354b), 0);
+        lv_obj_set_style_radius(button, 8, 0);
+        lv_obj_add_event_cb(button, wifi_network_selected, LV_EVENT_CLICKED, (void *)(uintptr_t)i);
+        lv_obj_t *label = lv_label_create(button);
+        char line[96];
+        snprintf(line, sizeof(line), "%s  %d dBm %s",
+                 wifi.aps[i].ssid, (int)wifi.aps[i].rssi,
+                 wifi.aps[i].secure ? "*" : "");
+        lv_label_set_text(label, line);
+        lv_obj_set_style_text_color(label, lv_color_hex(0xffffff), 0);
+        lv_obj_center(label);
     }
-    lv_label_set_text(wifi_networks_label, networks);
+    if (wifi.count == 0) {
+        lv_obj_t *label = lv_label_create(wifi_list);
+        lv_label_set_text(label, "Сети не найдены");
+    }
 }
 
 
@@ -299,6 +388,57 @@ void create_screen_door_cam() {
             wifi_networks_label = home_label(settings_wifi_page, "Нажмите «Поиск сетей»", 4, 169, &ui_font_roboto, 0xb9cbe0);
             lv_obj_set_width(wifi_networks_label, 425);
             lv_label_set_long_mode(wifi_networks_label, LV_LABEL_LONG_WRAP);
+            lv_obj_add_flag(wifi_networks_label, LV_OBJ_FLAG_HIDDEN);
+            wifi_list = lv_obj_create(settings_wifi_page);
+            lv_obj_set_pos(wifi_list, 0, 166);
+            lv_obj_set_size(wifi_list, 430, 227);
+            lv_obj_set_style_bg_opa(wifi_list, LV_OPA_TRANSP, 0);
+            lv_obj_set_style_border_width(wifi_list, 0, 0);
+            lv_obj_set_style_pad_all(wifi_list, 4, 0);
+            lv_obj_set_flex_flow(wifi_list, LV_FLEX_FLOW_COLUMN);
+            lv_obj_set_style_pad_row(wifi_list, 6, 0);
+            lv_obj_set_scroll_dir(wifi_list, LV_DIR_VER);
+            wifi_password_page = lv_obj_create(parent_obj);
+            lv_obj_set_pos(wifi_password_page, 50, 12);
+            lv_obj_set_size(wifi_password_page, 700, 456);
+            lv_obj_set_style_bg_color(wifi_password_page, lv_color_hex(0x172234), 0);
+            lv_obj_set_style_bg_opa(wifi_password_page, LV_OPA_COVER, 0);
+            lv_obj_set_style_radius(wifi_password_page, 16, 0);
+            lv_obj_set_style_pad_all(wifi_password_page, 12, 0);
+            lv_obj_remove_flag(wifi_password_page, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_add_flag(wifi_password_page, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_t *pw_back = lv_button_create(wifi_password_page);
+            lv_obj_set_pos(pw_back, 0, 0);
+            lv_obj_set_size(pw_back, 82, 42);
+            lv_obj_add_event_cb(pw_back, wifi_password_close, LV_EVENT_CLICKED, NULL);
+            lv_obj_t *pw_back_text = lv_label_create(pw_back);
+            lv_label_set_text(pw_back_text, "Назад");
+            lv_obj_center(pw_back_text);
+            wifi_password_message = lv_label_create(wifi_password_page);
+            lv_obj_set_pos(wifi_password_message, 110, 10);
+            lv_obj_set_style_text_color(wifi_password_message, lv_color_hex(0x4ade80), 0);
+            lv_label_set_text(wifi_password_message, "Введите пароль");
+            wifi_password_input = lv_textarea_create(wifi_password_page);
+            lv_obj_set_pos(wifi_password_input, 0, 52);
+            lv_obj_set_size(wifi_password_input, 530, 46);
+            lv_textarea_set_one_line(wifi_password_input, true);
+            lv_textarea_set_password_mode(wifi_password_input, true);
+            lv_textarea_set_max_length(wifi_password_input, 63);
+            lv_textarea_set_placeholder_text(wifi_password_input, "Пароль Wi-Fi");
+            lv_obj_t *connect = lv_button_create(wifi_password_page);
+            lv_obj_set_pos(connect, 540, 52);
+            lv_obj_set_size(connect, 132, 46);
+            lv_obj_set_style_bg_color(connect, lv_color_hex(0x247a59), 0);
+            lv_obj_add_event_cb(connect, wifi_connect_submit, LV_EVENT_CLICKED, NULL);
+            lv_obj_t *connect_text = lv_label_create(connect);
+            lv_label_set_text(connect_text, "Подключить");
+            lv_obj_center(connect_text);
+            wifi_keyboard = lv_keyboard_create(wifi_password_page);
+            lv_obj_set_pos(wifi_keyboard, 0, 111);
+            lv_obj_set_size(wifi_keyboard, 672, 308);
+            lv_keyboard_set_textarea(wifi_keyboard, wifi_password_input);
+            lv_keyboard_set_mode(wifi_keyboard, LV_KEYBOARD_MODE_TEXT_LOWER);
+
         }
     }
 
@@ -307,6 +447,7 @@ void create_screen_door_cam() {
 
 void tick_screen_door_cam() {
     settings_wifi_refresh();
+    wifi_password_refresh();
     static uint32_t last_status_tick;
     static int last_ha = -1, last_wifi = -1;
     if (home_ha_status && home_wifi_status &&
