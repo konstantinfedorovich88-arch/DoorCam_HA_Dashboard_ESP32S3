@@ -85,7 +85,7 @@ static void settings_wifi_refresh(void)
     dash_wifi_snapshot_t wifi;
     dash_wifi_snapshot(&wifi);
     char status[160];
-    snprintf(status, sizeof(status), "Состояние: %s\\nIP: %s",
+    snprintf(status, sizeof(status), "Состояние: %s\nIP: %s",
              wifi.connected ? "Подключено" : (wifi.connecting ? "Подключение..." : "Нет связи"),
              wifi.ip[0] ? wifi.ip : "--");
     lv_label_set_text(wifi_info_label, status);
@@ -94,7 +94,7 @@ static void settings_wifi_refresh(void)
     size_t used = 0;
     used += snprintf(networks, sizeof(networks), "Найденные сети (%u):", wifi.count);
     for (unsigned i = 0; i < wifi.count && used < sizeof(networks) - 64; ++i) {
-        int n = snprintf(networks + used, sizeof(networks) - used, "\\n%s  %d dBm %s",
+        int n = snprintf(networks + used, sizeof(networks) - used, "\n%s  %d dBm %s",
                          wifi.aps[i].ssid, (int)wifi.aps[i].rssi,
                          wifi.aps[i].secure ? "*" : "");
         if (n > 0) used += (size_t)n;
