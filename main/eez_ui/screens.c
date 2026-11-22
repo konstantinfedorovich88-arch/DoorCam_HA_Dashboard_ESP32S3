@@ -11,6 +11,7 @@
 #include "esp_chip_info.h"
 #include "esp_heap_caps.h"
 #include "esp_app_desc.h"
+#include "esp_timer.h"
 #include "esp_idf_version.h"
 #include "images.h"
 #include "fonts.h"
