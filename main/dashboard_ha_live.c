@@ -277,9 +277,15 @@ static void process_message(char *message)
     } else if (!strcmp(type->valuestring,"result")) {
         cJSON *id=cJSON_GetObjectItemCaseSensitive(root,"id");
         cJSON *success=cJSON_GetObjectItemCaseSensitive(root,"success");
+        if (cJSON_IsNumber(id) && id->valueint==5 && !cJSON_IsTrue(success)) {
+            char *detail=cJSON_PrintUnformatted(cJSON_GetObjectItemCaseSensitive(root,"error"));
+            ESP_LOGW(TAG,"Gismeteo forecast request failed: %s",detail?detail:"unknown error");
+            cJSON_free(detail);
+        }
         if (cJSON_IsNumber(id) && id->valueint==5 && cJSON_IsTrue(success)) {
             cJSON *response=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(root,"result"),"response");
             cJSON *days=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(response,"weather.home_assistant"),"forecast");
+            ESP_LOGI(TAG,"Gismeteo forecast received: %d days",cJSON_GetArraySize(days));
             cJSON *day=cJSON_GetArrayItem(days,0);
             cJSON *hi=cJSON_GetObjectItemCaseSensitive(day,"temperature");
             cJSON *lo=cJSON_GetObjectItemCaseSensitive(day,"templow");
@@ -292,13 +298,23 @@ static void process_message(char *message)
             if (cJSON_IsTrue(success)) {
                 parse_panel_config(cJSON_GetObjectItemCaseSensitive(root,"result"));
             }
-            else ESP_LOGW(TAG,"DoorCam Panel config unavailable (check dashboard URL path and permissions)");
+            else {
+                cJSON *error=cJSON_GetObjectItemCaseSensitive(root,"error");
+                char *detail=cJSON_PrintUnformatted(error);
+                ESP_LOGW(TAG,"DoorCam Panel config unavailable: %s",detail?detail:"unknown error");
+                cJSON_free(detail);
+            }
             /* Request the full state snapshot only once, after panel config.
              * Previously auth_ok and panel config both requested large JSON
              * snapshots, increasing PSRAM traffic during RGB scanout. */
             const char *states_request="{\"id\":4,\"type\":\"get_states\"}";
             ESP_LOGI(TAG,"Requesting one initial HA state snapshot");
             esp_websocket_client_send_text(s_ws,states_request,strlen(states_request),pdMS_TO_TICKS(1000));
+        }
+        if (cJSON_IsNumber(id) && id->valueint==4 && !cJSON_IsTrue(success)) {
+            char *detail=cJSON_PrintUnformatted(cJSON_GetObjectItemCaseSensitive(root,"error"));
+            ESP_LOGW(TAG,"HA get_states failed: %s",detail?detail:"unknown error");
+            cJSON_free(detail);
         }
         if (cJSON_IsNumber(id) && (id->valueint==2 || id->valueint==4) && cJSON_IsTrue(success)) {
             cJSON *states=cJSON_GetObjectItemCaseSensitive(root,"result");
