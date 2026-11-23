@@ -772,9 +772,10 @@ void create_screen_door_cam() {
         {
             lv_obj_t *obj = lv_image_create(parent_obj);
             lv_obj_set_pos(obj, 741, 19);
-            lv_obj_set_size(obj, 28, 28);
+            /* Native 32x32 ARGB8888 icon. Avoid LVGL SW ARGB transform:
+             * scaled draws can fail after HA state processing / memory churn. */
+            lv_obj_set_size(obj, 32, 32);
             lv_image_set_src(obj, &img_icon_settings);
-            lv_image_set_scale(obj, 250);
         }
         {
             // SettingsPopup — retain existing open/close callbacks.
