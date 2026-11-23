@@ -341,11 +341,61 @@ static uint32_t home_layout_tick;
 static uint32_t home_values_tick;
 static bool home_watch_ready;
 
+
+static lv_obj_t *weather_icons[HOME_DYNAMIC_MAX];
+static char weather_last[HOME_DYNAMIC_MAX][64];
+
+static void weather_dot(lv_obj_t *p, int x, int y, int w, int h, uint32_t color)
+{
+    lv_obj_t *o = lv_obj_create(p);
+    lv_obj_set_pos(o,x,y);
+    lv_obj_set_size(o,w,h);
+    lv_obj_set_style_bg_color(o,lv_color_hex(color),0);
+    lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
+    lv_obj_set_style_border_width(o,0,0);
+    lv_obj_set_style_radius(o,LV_RADIUS_CIRCLE,0);
+    lv_obj_set_style_pad_all(o,0,0);
+    lv_obj_set_scrollable(o,false);
+}
+static void weather_icon_update(lv_obj_t *p, const char *state)
+{
+    if (!p) return;
+    lv_obj_clean(p);
+    bool sun = !strcmp(state,"sunny") || !strcmp(state,"clear-night") || !strcmp(state,"partlycloudy");
+    bool cloud = !strcmp(state,"cloudy") || !strcmp(state,"partlycloudy") ||
+                 !strcmp(state,"fog") || !strcmp(state,"windy") || !strcmp(state,"windy-variant");
+    bool rain = !strcmp(state,"rainy") || !strcmp(state,"pouring") ||
+                !strcmp(state,"lightning-rainy") || !strcmp(state,"hail");
+    bool snow = !strcmp(state,"snowy") || !strcmp(state,"snowy-rainy");
+    bool lightning = !strcmp(state,"lightning") || !strcmp(state,"lightning-rainy");
+    if (sun) {
+        weather_dot(p,8,7,37,37,0xfbbf24);
+        weather_dot(p,25,0,4,5,0xfbbf24);
+        weather_dot(p,25,46,4,5,0xfbbf24);
+        weather_dot(p,0,24,5,4,0xfbbf24);
+        weather_dot(p,47,24,5,4,0xfbbf24);
+    }
+    if (cloud || rain || snow || lightning) {
+        weather_dot(p,6,26,56,25,0xcbd5e1);
+        weather_dot(p,15,16,31,31,0xcbd5e1);
+        weather_dot(p,36,21,26,26,0xcbd5e1);
+    }
+    for (int i=0;i<3 && (rain || snow);++i) {
+        if (snow) home_label(p,"*",13+i*19,49,&ui_font_roboto,0x93c5fd);
+        else weather_dot(p,16+i*18,51,4,11,0x60a5fa);
+    }
+    if (lightning) home_label(p,"!",31,45,&ui_font_roboto,0xfbbf24);
+    if (!sun && !cloud && !rain && !snow && !lightning)
+        home_label(p,"?",25,20,&ui_font_roboto,0x94a3b8);
+}
+
 static void home_dynamic_rebuild(const char *json)
 {
     if (!home_dynamic_area) return;
     lv_obj_clean(home_dynamic_area);
     memset(home_dynamic_values, 0, sizeof(home_dynamic_values));
+    memset(weather_icons, 0, sizeof(weather_icons));
+    memset(weather_last, 0, sizeof(weather_last));
     memset(home_dynamic_ids, 0, sizeof(home_dynamic_ids));
     memset(home_dynamic_entity_ids, 0, sizeof(home_dynamic_entity_ids));
     home_dynamic_count = 0;
@@ -368,10 +418,21 @@ static void home_dynamic_rebuild(const char *json)
             lv_obj_t *panel = home_card(home_dynamic_area, x, y, wide ? 776 : 382, 128);
             home_label(panel, title->valuestring, 16, 8, &ui_font_roboto, 0xb9cbe0);
             unsigned index = home_dynamic_count++;
-            const lv_font_t *font = has_secondary ? &ui_font_roboto : HOME_VALUE_FONT;
-            home_dynamic_values[index][0] = home_label(panel, "--", 16, has_secondary ? 40 : 44, font, 0xffffff);
+            bool is_weather = !strncmp(entity->valuestring,"weather.",8);
+            if (is_weather) {
+                weather_icons[index] = lv_obj_create(panel);
+                lv_obj_set_pos(weather_icons[index],12,39);
+                lv_obj_set_size(weather_icons[index],72,72);
+                lv_obj_set_style_bg_opa(weather_icons[index],LV_OPA_TRANSP,0);
+                lv_obj_set_style_border_width(weather_icons[index],0,0);
+                lv_obj_set_style_pad_all(weather_icons[index],0,0);
+                lv_obj_set_scrollable(weather_icons[index],false);
+                weather_icon_update(weather_icons[index],"unknown");
+            }
+            const lv_font_t *font = has_secondary || is_weather ? &ui_font_roboto : HOME_VALUE_FONT;
+            home_dynamic_values[index][0] = home_label(panel, "--", is_weather ? 94 : 16, has_secondary ? 40 : 44, font, 0xffffff);
             lv_label_set_long_mode(home_dynamic_values[index][0], LV_LABEL_LONG_DOT);
-            lv_obj_set_width(home_dynamic_values[index][0], wide ? 720 : 340);
+            lv_obj_set_width(home_dynamic_values[index][0], is_weather ? (wide ? 620 : 260) : (wide ? 720 : 340));
             snprintf(home_dynamic_entity_ids[index][0], 80, "%s", entity->valuestring);
             if (has_secondary) {
                 home_dynamic_values[index][1] = home_label(panel, "--", 16, 80, &ui_font_roboto, 0x7fc8f8);
@@ -432,6 +493,10 @@ static void home_dynamic_tick(void)
             if (home_dynamic_entity_ids[i][j][0] &&
                 dashboard_ha_watch_get(home_dynamic_entity_ids[i][j], value, sizeof(value)))
                 display = value;
+            if (j == 0 && weather_icons[i] && strcmp(weather_last[i],display)) {
+                snprintf(weather_last[i],sizeof(weather_last[i]),"%s",display);
+                weather_icon_update(weather_icons[i],display);
+            }
             if (strcmp(lv_label_get_text(home_dynamic_values[i][j]), display))
                 lv_label_set_text(home_dynamic_values[i][j], display);
         }
