@@ -137,6 +137,7 @@ static const char EDITOR[] =
 "<button onclick='add()'>+ Карточка</button></div><div id='grid' class='grid'></div>"
 "<h3>Выбранная карточка</h3><label>Название</label><input id='title' maxlength='63' oninput='edit()'>"
 "<label>Entity ID Home Assistant</label><input id='entity' maxlength='79' oninput='edit()' placeholder='sensor.temperature'>"
+"<label>Второй датчик (влажность)</label><input id='entity2' maxlength='79' oninput='edit()' placeholder='sensor.humidity'>"
 "<label>Размер</label><select id='size' onchange='edit()'><option value='normal'>Обычная</option><option value='wide'>Широкая</option></select>"
 "<div class='tools'><button onclick='move(-1)'>↑ Выше</button><button onclick='move(1)'>↓ Ниже</button>"
 "<button onclick='removeCard()'>Удалить</button></div><p id='status'></p>"
@@ -144,17 +145,17 @@ static const char EDITOR[] =
 "<script>let cards=[],selected=-1;"
 "const $=id=>document.getElementById(id);"
 "function status(t){$('status').textContent=t}"
-"function draw(){const g=$('grid');g.replaceChildren();cards.forEach((c,i)=>{"
+"function drawGrid(){const g=$('grid');g.replaceChildren();cards.forEach((c,i)=>{"
 "const d=document.createElement('div');d.className='card '+(c.size==='wide'?'wide ':'')+(i===selected?'sel':'');"
 "const b=document.createElement('b');b.textContent=c.title||'Без названия';"
-"const v=document.createElement('p');v.textContent=c.entity_id||'Выберите датчик';"
+"const v=document.createElement('p');v.textContent=[c.entity_id,c.entity_id_2].filter(Boolean).join(' + ')||'Выберите датчик';"
 "d.append(b,v);d.onclick=()=>{selected=i;draw()};g.append(d)});"
-"const c=cards[selected];$('title').value=c?c.title:'';$('entity').value=c?c.entity_id:'';"
+"function draw(){drawGrid();const c=cards[selected];$('title').value=c?c.title:'';$('entity').value=c?c.entity_id:'';$('entity2').value=c?(c.entity_id_2||''):'';"
 "$('size').value=c?c.size:'normal'}"
 "function edit(){if(selected<0)return;const c=cards[selected];c.title=$('title').value;"
-"c.entity_id=$('entity').value;c.size=$('size').value;draw()}"
+"c.entity_id=$('entity').value;c.entity_id_2=$('entity2').value;c.size=$('size').value;drawGrid()}"
 "function add(){if(cards.length>=8){status('Максимум 8 карточек');return}"
-"cards.push({title:'Новая карточка',entity_id:'',size:'normal'});selected=cards.length-1;draw()}"
+"cards.push({title:'Новая карточка',entity_id:'',entity_id_2:'',size:'normal'});selected=cards.length-1;draw()}"
 "function move(n){let j=selected+n;if(selected<0||j<0||j>=cards.length)return;"
 "[cards[selected],cards[j]]=[cards[j],cards[selected]];selected=j;draw()}"
 "function removeCard(){if(selected<0)return;cards.splice(selected,1);selected=Math.min(selected,cards.length-1);draw()}"
@@ -241,11 +242,15 @@ static esp_err_t config_post(httpd_req_t *req)
     if (valid) cJSON_ArrayForEach(card, cards) {
         cJSON *title = cJSON_GetObjectItemCaseSensitive(card, "title");
         cJSON *entity = cJSON_GetObjectItemCaseSensitive(card, "entity_id");
+        cJSON *secondary = cJSON_GetObjectItemCaseSensitive(card, "entity_id_2");
         cJSON *size = cJSON_GetObjectItemCaseSensitive(card, "size");
         if (!cJSON_IsObject(card) || !cJSON_IsString(title) ||
             !cJSON_IsString(entity) || !cJSON_IsString(size) ||
             !valid_card_string(title->valuestring, 63) ||
             !valid_card_string(entity->valuestring, 79) ||
+            (secondary && (!cJSON_IsString(secondary) ||
+             !valid_card_string(secondary->valuestring, 79) ||
+             (secondary->valuestring[0] && !strchr(secondary->valuestring, '.')))) ||
             (entity->valuestring[0] && !strchr(entity->valuestring, '.')) ||
             (strcmp(size->valuestring, "normal") && strcmp(size->valuestring, "wide"))) {
             valid = false;
