@@ -334,6 +334,7 @@ static char home_layout_last[2048];
 static unsigned home_dynamic_count;
 static uint32_t home_layout_tick;
 static uint32_t home_values_tick;
+static bool home_watch_ready;
 
 static void home_dynamic_rebuild(const char *json)
 {
@@ -369,7 +370,7 @@ static void home_dynamic_rebuild(const char *json)
         }
     }
     cJSON_Delete(root);
-    dashboard_ha_watch_set((const char (*)[80])home_dynamic_ids, home_dynamic_count);
+    home_watch_ready = false;
     home_values_tick = 0;
 }
 
@@ -392,7 +393,11 @@ static void home_dynamic_tick(void)
         }
         if (layout[0]) {
             lv_obj_remove_flag(home_dynamic_area, LV_OBJ_FLAG_HIDDEN);
-            dashboard_ha_watch_set((const char (*)[80])home_dynamic_ids, home_dynamic_count);
+            if (dashboard_ha_is_connected() && !home_watch_ready) {
+                dashboard_ha_watch_set((const char (*)[80])home_dynamic_ids, home_dynamic_count);
+                home_watch_ready = true;
+            }
+            if (!dashboard_ha_is_connected()) home_watch_ready = false;
         }
     }
     if (home_values_tick && lv_tick_elaps(home_values_tick) < 500) return;
