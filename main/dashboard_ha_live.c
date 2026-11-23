@@ -92,7 +92,7 @@ static void save_entity(const char *id, const char *state, const char *friendly,
     if (!id || !state) return;
     if (strncmp(id,"light.",6) && strncmp(id,"switch.",7) &&
         strncmp(id,"sensor.",7) && strncmp(id,"binary_sensor.",14) &&
-        strncmp(id,"climate.",8)) return;
+        strncmp(id,"climate.",8) && strncmp(id,"weather.",8)) return;
     xSemaphoreTake(s_mutex,portMAX_DELAY);
     if (!strcmp(id,"binary_sensor.doorcam_chelovek")) {
         bool detected=!strcmp(state,"on");
