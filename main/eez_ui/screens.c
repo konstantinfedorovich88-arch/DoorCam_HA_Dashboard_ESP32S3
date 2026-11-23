@@ -710,8 +710,8 @@ void create_screen_door_cam() {
     lv_obj_set_style_text_font(obj, &ui_font_roboto, LV_PART_MAIN | LV_STATE_DEFAULT);
     {
         lv_obj_t *parent_obj = obj;
-        objects.obj0 = home_card(parent_obj, 12, 8, 278, 84);
-        objects.obj2 = home_label(objects.obj0, "Мой дом", 12, 17, HOME_VALUE_FONT, 0x4ade80);
+        objects.obj0 = home_card(parent_obj, 12, 4, 278, 52);
+        objects.obj2 = home_label(objects.obj0, "Мой дом", 12, 3, HOME_VALUE_FONT, 0x4ade80);
         lv_obj_set_width(objects.obj2, 255);
         lv_obj_set_style_text_align(objects.obj2, LV_TEXT_ALIGN_CENTER, 0);
         objects.obj1 = home_card(parent_obj, 12, 66, 382, 132);
@@ -725,15 +725,15 @@ void create_screen_door_cam() {
         home_label(inside, "Климат в доме", 16, 8, &ui_font_roboto, 0xb9cbe0);
         home_label(inside, "-- C", 16, 32, HOME_VALUE_FONT, 0xffffff);
         home_label(inside, "Влажность: -- %", 16, 100, &ui_font_roboto, 0x7fc8f8);
-        lv_obj_t *clock = home_card(parent_obj, 300, 8, 180, 84);
-        lv_obj_t *date_panel = home_card(parent_obj, 488, 8, 228, 84);
-        home_clock_time = home_label(clock, "--:--", 8, 2, HOME_CLOCK_FONT, 0x4ade80);
+        lv_obj_t *clock = home_card(parent_obj, 300, 4, 180, 52);
+        lv_obj_t *date_panel = home_card(parent_obj, 488, 4, 228, 52);
+        home_clock_time = home_label(clock, "--:--", 8, 2, HOME_VALUE_FONT, 0x4ade80);
         home_clock_date = home_label(date_panel, "--.--.----", 5, 12, &ui_font_roboto, 0xb9cbe0);
         lv_obj_set_width(home_clock_date, 218);
         lv_label_set_long_mode(home_clock_date, LV_LABEL_LONG_DOT);
         home_dynamic_area = lv_obj_create(parent_obj);
-        lv_obj_set_pos(home_dynamic_area, 12, 100);
-        lv_obj_set_size(home_dynamic_area, 776, 234);
+        lv_obj_set_pos(home_dynamic_area, 12, 66);
+        lv_obj_set_size(home_dynamic_area, 776, 268);
         lv_obj_set_style_pad_all(home_dynamic_area, 0, 0);
         lv_obj_set_style_border_width(home_dynamic_area, 0, 0);
         lv_obj_set_style_bg_opa(home_dynamic_area, LV_OPA_COVER, 0);
