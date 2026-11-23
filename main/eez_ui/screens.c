@@ -412,7 +412,7 @@ static void home_dynamic_rebuild(const char *json)
             cJSON *size = cJSON_GetObjectItemCaseSensitive(card, "size");
             if (!cJSON_IsString(title) || !cJSON_IsString(entity)) continue;
             bool has_secondary = cJSON_IsString(secondary) && secondary->valuestring[0];
-            bool wide = cJSON_IsString(size) && !strcmp(size->valuestring, "wide");
+            bool wide = y != 0 && cJSON_IsString(size) && !strcmp(size->valuestring, "wide");
             if (wide && column) { column = 0; y += 132; }
             int x = column ? 394 : 0;
             lv_obj_t *panel = home_card(home_dynamic_area, x, y, wide ? 776 : 382, 128);
@@ -440,7 +440,7 @@ static void home_dynamic_rebuild(const char *json)
                 lv_obj_set_width(home_dynamic_values[index][1], wide ? 720 : 340);
                 snprintf(home_dynamic_entity_ids[index][1], 80, "%s", secondary->valuestring);
             }
-            if (wide || column) { column = 0; y += 132; }
+            if (y == 0 || wide || column) { column = 0; y += 132; }
             else column = 1;
         }
     }
@@ -711,9 +711,11 @@ void create_screen_door_cam() {
     {
         lv_obj_t *parent_obj = obj;
         objects.obj0 = home_card(parent_obj, 12, 4, 278, 52);
-        objects.obj2 = home_label(objects.obj0, "Мой дом", 12, 3, HOME_VALUE_FONT, 0x4ade80);
-        lv_obj_set_width(objects.obj2, 255);
-        lv_obj_set_style_text_align(objects.obj2, LV_TEXT_ALIGN_CENTER, 0);
+        objects.obj2 = home_label(objects.obj0, "Мой дом", 0, 10, &ui_font_roboto, 0x4ade80);
+        lv_obj_set_style_transform_scale_x(objects.obj2, 448, 0);
+        lv_obj_set_style_transform_scale_y(objects.obj2, 448, 0);
+        lv_obj_set_width(objects.obj2, LV_SIZE_CONTENT);
+        lv_obj_set_style_text_align(objects.obj2, LV_TEXT_ALIGN_LEFT, 0);
         objects.obj1 = home_card(parent_obj, 12, 66, 382, 132);
         objects.obj3 = home_label(objects.obj1, "Погода сейчас", 16, 8, &ui_font_roboto, 0xb9cbe0);
         objects.obj4 = home_label(objects.obj1, "--", 16, 32, HOME_VALUE_FONT, 0xffffff);
@@ -725,9 +727,13 @@ void create_screen_door_cam() {
         home_label(inside, "Климат в доме", 16, 8, &ui_font_roboto, 0xb9cbe0);
         home_label(inside, "-- C", 16, 32, HOME_VALUE_FONT, 0xffffff);
         home_label(inside, "Влажность: -- %", 16, 100, &ui_font_roboto, 0x7fc8f8);
-        lv_obj_t *clock = home_card(parent_obj, 300, 4, 180, 52);
+        lv_obj_t *clock = home_card(parent_obj, 406, 66, 382, 128);
         lv_obj_t *date_panel = home_card(parent_obj, 488, 4, 228, 52);
-        home_clock_time = home_label(clock, "--:--", 8, 2, HOME_VALUE_FONT, 0x4ade80);
+        home_clock_time = home_label(clock, "--:--", 8, 2, HOME_CLOCK_FONT, 0x4ade80);
+        lv_obj_set_style_transform_pivot_x(home_clock_time, LV_PCT(50), 0);
+        lv_obj_set_style_transform_pivot_y(home_clock_time, LV_PCT(50), 0);
+        lv_obj_set_style_transform_scale_x(home_clock_time, 384, 0);
+        lv_obj_set_style_transform_scale_y(home_clock_time, 448, 0);
         home_clock_date = home_label(date_panel, "--.--.----", 5, 12, &ui_font_roboto, 0xb9cbe0);
         lv_obj_set_width(home_clock_date, 218);
         lv_label_set_long_mode(home_clock_date, LV_LABEL_LONG_DOT);
@@ -741,6 +747,7 @@ void create_screen_door_cam() {
         lv_obj_set_scroll_dir(home_dynamic_area, LV_DIR_VER);
         lv_obj_set_hidden(home_dynamic_area, true);
         lv_obj_align(home_clock_time, LV_ALIGN_CENTER, 0, 0);
+        lv_obj_move_foreground(clock);
         lv_obj_align(home_clock_date, LV_ALIGN_CENTER, 0, 0);
         lv_obj_set_style_text_align(home_clock_time, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_align(home_clock_date, LV_TEXT_ALIGN_CENTER, 0);
