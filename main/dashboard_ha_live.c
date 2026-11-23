@@ -6,6 +6,7 @@
 #include "cJSON.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "freertos/task.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -19,6 +20,56 @@ static dashboard_ha_snapshot_t s_snapshot;
 static char *s_message;
 static int s_received, s_expected;
 static bool s_started;
+static unsigned s_next_id, s_forecast_id, s_panel_id, s_states_id;
+static bool s_refresh_pending, s_initial_pending, s_panel_pending;
+static TaskHandle_t s_tx_task;
+
+/* Only the TX task sends authenticated commands. The event callback never
+ * waits for it, and the snapshot mutex is never held during network I/O. */
+static void ha_tx_task(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(250));
+        for (;;) {
+            const char *body = NULL;
+            unsigned id = 0;
+            xSemaphoreTake(s_mutex, portMAX_DELAY);
+            if (s_snapshot.connected) {
+                if (s_initial_pending) {
+                    s_initial_pending = false;
+                    body = "\"type\":\"subscribe_events\",\"event_type\":\"state_changed\"";
+                } else if (!s_forecast_id) {
+                    body = "\"type\":\"call_service\",\"domain\":\"weather\",\"service\":\"get_forecasts\",\"service_data\":{\"type\":\"daily\"},\"target\":{\"entity_id\":\"weather.home_assistant\"},\"return_response\":true";
+                    s_forecast_id = s_next_id + 1;
+                } else if (!s_panel_id) {
+                    body = "\"type\":\"lovelace/config\",\"url_path\":\"doorcam-panel\"";
+                    s_panel_id = s_next_id + 1;
+                    s_panel_pending = true;
+                } else if (!s_panel_pending && !s_states_id && s_refresh_pending) {
+                    body = "\"type\":\"get_states\"";
+                    s_refresh_pending = false;
+                    s_states_id = s_next_id + 1;
+                }
+                if (body) id = ++s_next_id;
+            }
+            xSemaphoreGive(s_mutex);
+            if (!body) break;
+            char payload[384];
+            int len = snprintf(payload, sizeof(payload), "{\"id\":%u,%s}", id, body);
+            ESP_LOGI(TAG, "HA WS TX id=%u %s", id, body);
+            if (len <= 0 || len >= sizeof(payload) ||
+                esp_websocket_client_send_text(s_ws, payload, len, pdMS_TO_TICKS(1000)) != len) {
+                ESP_LOGW(TAG, "HA WS send failed id=%u", id);
+                xSemaphoreTake(s_mutex, portMAX_DELAY);
+                if (s_states_id == id) { s_states_id = 0; s_refresh_pending = true; }
+                if (s_panel_id == id) { s_panel_pending = false; s_refresh_pending = true; }
+                xSemaphoreGive(s_mutex);
+                break;
+            }
+        }
+    }
+}
 static bool s_person_detected;
 static char s_weather[64];
 static char s_forecast[64];
@@ -44,11 +95,9 @@ void dashboard_ha_watch_set(const char ids[DASH_HA_WATCH_MAX][80], unsigned coun
                 break;
             }
     }
+    s_refresh_pending = true;
     xSemaphoreGive(s_mutex);
-    if (s_ws && dashboard_ha_is_connected()) {
-        const char *request = "{\"id\":4,\"type\":\"get_states\"}";
-        esp_websocket_client_send_text(s_ws, request, strlen(request), pdMS_TO_TICKS(1000));
-    }
+    if (s_tx_task) xTaskNotifyGive(s_tx_task);
 }
 
 bool dashboard_ha_watch_get(const char *id, char *out, unsigned capacity)
@@ -263,26 +312,30 @@ static void process_message(char *message)
         memset(token,0,sizeof(token));
     } else if (!strcmp(type->valuestring,"auth_ok")) {
         xSemaphoreTake(s_mutex,portMAX_DELAY);
+        s_next_id = s_forecast_id = s_panel_id = s_states_id = 0;
+        s_initial_pending = true;
+        s_panel_pending = true;
+        s_refresh_pending = true;
         s_snapshot.connected=true;
         xSemaphoreGive(s_mutex);
         ESP_LOGI(TAG,"Home Assistant WebSocket authenticated");
-        const char *subscribe="{\"id\":1,\"type\":\"subscribe_events\",\"event_type\":\"state_changed\"}";
-        esp_websocket_client_send_text(s_ws,subscribe,strlen(subscribe),pdMS_TO_TICKS(1000));
-        const char *forecast="{\"id\":5,\"type\":\"call_service\",\"domain\":\"weather\",\"service\":\"get_forecasts\",\"service_data\":{\"type\":\"daily\"},\"target\":{\"entity_id\":\"weather.home_assistant\"},\"return_response\":true}";
-        esp_websocket_client_send_text(s_ws,forecast,strlen(forecast),pdMS_TO_TICKS(1000));
-        const char *get_panel="{\"id\":3,\"type\":\"lovelace/config\",\"url_path\":\"doorcam-panel\"}";
-        esp_websocket_client_send_text(s_ws,get_panel,strlen(get_panel),pdMS_TO_TICKS(1000));
+        if (s_tx_task) xTaskNotifyGive(s_tx_task);
     } else if (!strcmp(type->valuestring,"auth_invalid")) {
         ESP_LOGW(TAG,"Home Assistant WebSocket authentication rejected");
     } else if (!strcmp(type->valuestring,"result")) {
         cJSON *id=cJSON_GetObjectItemCaseSensitive(root,"id");
         cJSON *success=cJSON_GetObjectItemCaseSensitive(root,"success");
-        if (cJSON_IsNumber(id) && id->valueint==5 && !cJSON_IsTrue(success)) {
+        xSemaphoreTake(s_mutex, portMAX_DELAY);
+        bool forecast_result = cJSON_IsNumber(id) && s_forecast_id && id->valuedouble == s_forecast_id;
+        bool panel_result = cJSON_IsNumber(id) && s_panel_id && id->valuedouble == s_panel_id;
+        bool states_result = cJSON_IsNumber(id) && s_states_id && id->valuedouble == s_states_id;
+        xSemaphoreGive(s_mutex);
+        if (forecast_result && !cJSON_IsTrue(success)) {
             char *detail=cJSON_PrintUnformatted(cJSON_GetObjectItemCaseSensitive(root,"error"));
             ESP_LOGW(TAG,"Gismeteo forecast request failed: %s",detail?detail:"unknown error");
             cJSON_free(detail);
         }
-        if (cJSON_IsNumber(id) && id->valueint==5 && cJSON_IsTrue(success)) {
+        if (forecast_result && cJSON_IsTrue(success)) {
             cJSON *response=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(root,"result"),"response");
             cJSON *days=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(response,"weather.home_assistant"),"forecast");
             ESP_LOGI(TAG,"Gismeteo forecast received: %d days",cJSON_GetArraySize(days));
@@ -294,7 +347,7 @@ static void process_message(char *message)
             if (cJSON_IsNumber(hi) && cJSON_IsNumber(lo)) snprintf(s_forecast,sizeof(s_forecast),"%.0f / %.0f",hi->valuedouble,lo->valuedouble);
             xSemaphoreGive(s_mutex);
         }
-        if (cJSON_IsNumber(id) && id->valueint==3) {
+        if (panel_result) {
             if (cJSON_IsTrue(success)) {
                 parse_panel_config(cJSON_GetObjectItemCaseSensitive(root,"result"));
             }
@@ -304,19 +357,18 @@ static void process_message(char *message)
                 ESP_LOGW(TAG,"DoorCam Panel config unavailable: %s",detail?detail:"unknown error");
                 cJSON_free(detail);
             }
-            /* Request the full state snapshot only once, after panel config.
-             * Previously auth_ok and panel config both requested large JSON
-             * snapshots, increasing PSRAM traffic during RGB scanout. */
-            const char *states_request="{\"id\":4,\"type\":\"get_states\"}";
-            ESP_LOGI(TAG,"Requesting one initial HA state snapshot");
-            esp_websocket_client_send_text(s_ws,states_request,strlen(states_request),pdMS_TO_TICKS(1000));
+            xSemaphoreTake(s_mutex, portMAX_DELAY);
+            s_panel_pending = false;
+            s_refresh_pending = true;
+            xSemaphoreGive(s_mutex);
+            if (s_tx_task) xTaskNotifyGive(s_tx_task);
         }
-        if (cJSON_IsNumber(id) && id->valueint==4 && !cJSON_IsTrue(success)) {
+        if (states_result && !cJSON_IsTrue(success)) {
             char *detail=cJSON_PrintUnformatted(cJSON_GetObjectItemCaseSensitive(root,"error"));
             ESP_LOGW(TAG,"HA get_states failed: %s",detail?detail:"unknown error");
             cJSON_free(detail);
         }
-        if (cJSON_IsNumber(id) && (id->valueint==2 || id->valueint==4) && cJSON_IsTrue(success)) {
+        if (states_result && cJSON_IsTrue(success)) {
             cJSON *states=cJSON_GetObjectItemCaseSensitive(root,"result");
             if (cJSON_IsArray(states)) {
                 int64_t started_us = esp_timer_get_time();
@@ -329,6 +381,12 @@ static void process_message(char *message)
                 ESP_LOGI(TAG,"HA states processed: %u, elapsed=%lld ms",
                          processed, (long long)((esp_timer_get_time()-started_us)/1000));
             }
+        }
+        if (states_result) {
+            xSemaphoreTake(s_mutex, portMAX_DELAY);
+            s_states_id = 0;
+            xSemaphoreGive(s_mutex);
+            if (s_tx_task) xTaskNotifyGive(s_tx_task);
         }
     } else if (!strcmp(type->valuestring,"event")) {
         cJSON *event=cJSON_GetObjectItemCaseSensitive(root,"event");
@@ -391,8 +449,11 @@ esp_err_t dashboard_ha_live_start(void)
     if (!s_ws) return ESP_FAIL;
     esp_err_t err=esp_websocket_register_events(s_ws,WEBSOCKET_EVENT_ANY,ws_event,NULL);
     if (err!=ESP_OK) return err;
+    if (xTaskCreate(ha_tx_task, "ha_tx", 4096, NULL, 5, &s_tx_task) != pdPASS)
+        return ESP_ERR_NO_MEM;
     err=esp_websocket_client_start(s_ws);
     if (err==ESP_OK) s_started=true;
+    else { vTaskDelete(s_tx_task); s_tx_task = NULL; }
     return err;
 }
 
