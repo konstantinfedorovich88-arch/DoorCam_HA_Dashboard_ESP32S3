@@ -645,7 +645,7 @@ void create_screen_door_cam() {
     lv_obj_set_style_text_font(obj, &ui_font_roboto, LV_PART_MAIN | LV_STATE_DEFAULT);
     {
         lv_obj_t *parent_obj = obj;
-        objects.obj0 = home_card(parent_obj, 12, 8, 704, 52);
+        objects.obj0 = home_card(parent_obj, 12, 8, 550, 52);
         objects.obj2 = home_label(objects.obj0, "Мой дом", 16, 15, &ui_font_roboto, 0xffffff);
         objects.obj1 = home_card(parent_obj, 12, 66, 382, 132);
         objects.obj3 = home_label(objects.obj1, "Погода сейчас", 16, 8, &ui_font_roboto, 0xb9cbe0);
@@ -658,20 +658,20 @@ void create_screen_door_cam() {
         home_label(inside, "Климат в доме", 16, 8, &ui_font_roboto, 0xb9cbe0);
         home_label(inside, "-- C", 16, 32, HOME_VALUE_FONT, 0xffffff);
         home_label(inside, "Влажность: -- %", 16, 100, &ui_font_roboto, 0x7fc8f8);
-        lv_obj_t *clock = home_card(parent_obj, 470, 8, 245, 52);
-        home_clock_time = home_label(clock, "--:--", 8, 4, &ui_font_roboto, 0x4ade80);
-        home_clock_date = home_label(clock, "--.--.----", 70, 4, &ui_font_roboto, 0xb9cbe0);
+        lv_obj_t *clock = home_card(parent_obj, 578, 8, 210, 100);
+        home_clock_time = home_label(clock, "--:--", 8, 8, HOME_CLOCK_FONT, 0x4ade80);
+        home_clock_date = home_label(clock, "--.--.----", 8, 70, &ui_font_roboto, 0xb9cbe0);
         home_dynamic_area = lv_obj_create(parent_obj);
-        lv_obj_set_pos(home_dynamic_area, 12, 66);
-        lv_obj_set_size(home_dynamic_area, 776, 268);
+        lv_obj_set_pos(home_dynamic_area, 12, 112);
+        lv_obj_set_size(home_dynamic_area, 776, 222);
         lv_obj_set_style_pad_all(home_dynamic_area, 0, 0);
         lv_obj_set_style_border_width(home_dynamic_area, 0, 0);
         lv_obj_set_style_bg_opa(home_dynamic_area, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(home_dynamic_area, lv_color_hex(0x101827), 0);
         lv_obj_set_scroll_dir(home_dynamic_area, LV_DIR_VER);
         lv_obj_set_hidden(home_dynamic_area, true);
-        lv_obj_align(home_clock_time, LV_ALIGN_LEFT_MID, 8, 0);
-        lv_obj_align(home_clock_date, LV_ALIGN_RIGHT_MID, -8, 0);
+        lv_obj_align(home_clock_time, LV_ALIGN_TOP_MID, 0, 5);
+        lv_obj_align(home_clock_date, LV_ALIGN_BOTTOM_MID, 0, -7);
         lv_obj_set_style_text_align(home_clock_time, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_align(home_clock_date, LV_TEXT_ALIGN_CENTER, 0);
         home_pending_button(parent_obj, 20, 348, LV_SYMBOL_POWER, "Мастер-выключатель");
@@ -682,7 +682,7 @@ void create_screen_door_cam() {
             // BtnSettings
             lv_obj_t *obj = lv_button_create(parent_obj);
             objects.btn_settings = obj;
-            lv_obj_set_pos(obj, 730, 10);
+            lv_obj_set_pos(obj, 510, 10);
             lv_obj_set_size(obj, 50, 45);
             lv_obj_add_event_cb(obj, action_open_settings, LV_EVENT_CLICKED, (void *)0);
             lv_obj_set_style_bg_color(obj, lv_color_hex(0x344b66), LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -700,7 +700,7 @@ void create_screen_door_cam() {
         }
         {
             lv_obj_t *obj = lv_image_create(parent_obj);
-            lv_obj_set_pos(obj, 741, 19);
+            lv_obj_set_pos(obj, 521, 19);
             lv_obj_set_size(obj, 28, 28);
             lv_image_set_src(obj, &img_icon_settings);
             lv_image_set_scale(obj, 250);
