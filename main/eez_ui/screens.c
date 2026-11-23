@@ -454,14 +454,32 @@ static void home_dynamic_rebuild(const char *json)
     home_values_tick = 0;
 }
 
+extern bool dashboard_ha_weather_get(char *out, unsigned capacity);
+static dashboard_ha_snapshot_t home_panel_snapshot;
 static void home_dynamic_tick(void)
 {
     if (!home_dynamic_area) return;
     if (!home_layout_tick || lv_tick_elaps(home_layout_tick) >= 2000) {
         home_layout_tick = lv_tick_get();
         char layout[2048] = {0};
+        dashboard_ha_live_snapshot(&home_panel_snapshot);
+        if (home_panel_snapshot.panel_loaded) {
+            cJSON *root=cJSON_CreateObject();
+            cJSON *cards=cJSON_AddArrayToObject(root,"cards");
+            for (unsigned i=0;cards && i<home_panel_snapshot.panel_count;i++) {
+                dashboard_ha_entity_t *e=&home_panel_snapshot.panel_cards[i];
+                cJSON *card=cJSON_CreateObject();
+                if (!card) break;
+                cJSON_AddItemToArray(cards,card);
+                cJSON_AddStringToObject(card,"title",e->title);
+                cJSON_AddStringToObject(card,"entity_id",e->entity_id);
+            }
+            char *json=cJSON_PrintUnformatted(root);
+            if (json) { snprintf(layout,sizeof(layout),"%s",json); cJSON_free(json); }
+            cJSON_Delete(root);
+        }
         nvs_handle_t nvs;
-        if (nvs_open("doorcam_cards", NVS_READONLY, &nvs) == ESP_OK) {
+        if (!home_panel_snapshot.panel_loaded && nvs_open("doorcam_cards", NVS_READONLY, &nvs) == ESP_OK) {
             size_t len = sizeof(layout);
             nvs_get_str(nvs, "layout", layout, &len);
             nvs_close(nvs);
@@ -497,6 +515,8 @@ static void home_dynamic_tick(void)
                 snprintf(weather_last[i],sizeof(weather_last[i]),"%s",display);
                 weather_icon_update(weather_icons[i],display);
             }
+            char weather[128];
+            if (j == 0 && !strcmp(home_dynamic_entity_ids[i][j],"weather.home_assistant") && dashboard_ha_weather_get(weather,sizeof(weather))) display=weather;
             if (strcmp(lv_label_get_text(home_dynamic_values[i][j]), display))
                 lv_label_set_text(home_dynamic_values[i][j], display);
         }
