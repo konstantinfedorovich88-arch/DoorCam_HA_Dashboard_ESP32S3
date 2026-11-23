@@ -21,6 +21,53 @@ static int s_received, s_expected;
 static bool s_started;
 static bool s_person_detected;
 
+static dashboard_ha_entity_t s_watched[DASH_HA_WATCH_MAX];
+static unsigned s_watched_count;
+
+void dashboard_ha_watch_set(const char ids[DASH_HA_WATCH_MAX][80], unsigned count)
+{
+    if (!s_mutex) return;
+    if (count > DASH_HA_WATCH_MAX) count = DASH_HA_WATCH_MAX;
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    dashboard_ha_entity_t previous[DASH_HA_WATCH_MAX];
+    memcpy(previous, s_watched, sizeof(previous));
+    unsigned old_count = s_watched_count;
+    memset(s_watched, 0, sizeof(s_watched));
+    s_watched_count = count;
+    for (unsigned i = 0; i < count; ++i) {
+        snprintf(s_watched[i].entity_id, sizeof(s_watched[i].entity_id), "%s", ids[i]);
+        for (unsigned j = 0; j < old_count; ++j)
+            if (!strcmp(ids[i], previous[j].entity_id)) {
+                snprintf(s_watched[i].state, sizeof(s_watched[i].state), "%s", previous[j].state);
+                break;
+            }
+    }
+    xSemaphoreGive(s_mutex);
+    if (s_ws && dashboard_ha_is_connected()) {
+        const char *request = "{\"id\":4,\"type\":\"get_states\"}";
+        esp_websocket_client_send_text(s_ws, request, strlen(request), pdMS_TO_TICKS(1000));
+    }
+}
+
+bool dashboard_ha_watch_get(const char *id, char *out, unsigned capacity)
+{
+    if (!id || !out || !capacity) return false;
+    out[0] = 0;
+    if (!s_mutex) return false;
+    bool found = false;
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    if (s_snapshot.connected)
+        for (unsigned i = 0; i < s_watched_count; ++i)
+            if (!strcmp(id, s_watched[i].entity_id) && s_watched[i].state[0]) {
+                snprintf(out, capacity, "%s", s_watched[i].state);
+                found = true;
+                break;
+            }
+    xSemaphoreGive(s_mutex);
+    return found;
+}
+
+
 bool dashboard_ha_person_detected(void)
 {
     if (!s_mutex) return false;
@@ -53,6 +100,10 @@ static void save_entity(const char *id, const char *state, const char *friendly,
             ESP_LOGI(TAG,"DoorCam person: %s",state);
         s_person_detected=detected;
     }
+    for (unsigned k = 0; k < s_watched_count; ++k)
+        if (!strcmp(s_watched[k].entity_id, id))
+            snprintf(s_watched[k].state, sizeof(s_watched[k].state),
+                     "%s%s", state, unit ? unit : "");
     for (unsigned k=0;k<s_snapshot.panel_count;k++) {
         dashboard_ha_entity_t *card=&s_snapshot.panel_cards[k];
         if (!strcmp(card->entity_id,id)) {
@@ -249,6 +300,7 @@ static void ws_event(void *arg, esp_event_base_t base, int32_t event_id, void *e
         xSemaphoreTake(s_mutex,portMAX_DELAY);
         s_snapshot.connected=false;
         s_person_detected=false;
+        for (unsigned i = 0; i < s_watched_count; ++i) s_watched[i].state[0] = 0;
         xSemaphoreGive(s_mutex);
     } else if (event_id==WEBSOCKET_EVENT_DATA && e && e->op_code==0x1) {
         /* Reassemble text frames, including fragmented TCP/WebSocket delivery. */
