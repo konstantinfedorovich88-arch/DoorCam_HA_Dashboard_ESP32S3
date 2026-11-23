@@ -7,6 +7,7 @@
 #include "../dashboard_wifi.h"
 #include "../dashboard_board.h"
 #include "nvs.h"
+#include "cJSON.h"
 #include "esp_system.h"
 #include "esp_chip_info.h"
 #include "esp_heap_caps.h"
@@ -324,6 +325,89 @@ static void screen_settings_tick(void)
     }
 }
 
+
+#define HOME_DYNAMIC_MAX 8
+static lv_obj_t *home_dynamic_area;
+static lv_obj_t *home_dynamic_values[HOME_DYNAMIC_MAX];
+static char home_dynamic_ids[HOME_DYNAMIC_MAX][80];
+static char home_layout_last[2048];
+static unsigned home_dynamic_count;
+static uint32_t home_layout_tick;
+static uint32_t home_values_tick;
+
+static void home_dynamic_rebuild(const char *json)
+{
+    if (!home_dynamic_area) return;
+    lv_obj_clean(home_dynamic_area);
+    memset(home_dynamic_values, 0, sizeof(home_dynamic_values));
+    memset(home_dynamic_ids, 0, sizeof(home_dynamic_ids));
+    home_dynamic_count = 0;
+    cJSON *root = cJSON_Parse(json);
+    cJSON *cards = cJSON_GetObjectItemCaseSensitive(root, "cards");
+    if (cJSON_IsArray(cards)) {
+        int column = 0, y = 0;
+        cJSON *card = NULL;
+        cJSON_ArrayForEach(card, cards) {
+            if (home_dynamic_count >= HOME_DYNAMIC_MAX) break;
+            cJSON *title = cJSON_GetObjectItemCaseSensitive(card, "title");
+            cJSON *entity = cJSON_GetObjectItemCaseSensitive(card, "entity_id");
+            cJSON *size = cJSON_GetObjectItemCaseSensitive(card, "size");
+            if (!cJSON_IsString(title) || !cJSON_IsString(entity)) continue;
+            bool wide = cJSON_IsString(size) && !strcmp(size->valuestring, "wide");
+            if (wide && column) { column = 0; y += 132; }
+            int x = column ? 394 : 0;
+            lv_obj_t *panel = home_card(home_dynamic_area, x, y, wide ? 776 : 382, 128);
+            home_label(panel, title->valuestring, 16, 8, &ui_font_roboto, 0xb9cbe0);
+            lv_obj_t *value = home_label(panel, "--", 16, 44, HOME_VALUE_FONT, 0xffffff);
+            lv_label_set_long_mode(value, LV_LABEL_LONG_DOT);
+            lv_obj_set_width(value, wide ? 720 : 340);
+            unsigned index = home_dynamic_count++;
+            home_dynamic_values[index] = value;
+            snprintf(home_dynamic_ids[index], sizeof(home_dynamic_ids[index]), "%s", entity->valuestring);
+            if (wide || column) { column = 0; y += 132; }
+            else column = 1;
+        }
+    }
+    cJSON_Delete(root);
+    dashboard_ha_watch_set((const char (*)[80])home_dynamic_ids, home_dynamic_count);
+    home_values_tick = 0;
+}
+
+static void home_dynamic_tick(void)
+{
+    if (!home_dynamic_area) return;
+    if (!home_layout_tick || lv_tick_elaps(home_layout_tick) >= 2000) {
+        home_layout_tick = lv_tick_get();
+        char layout[2048] = {0};
+        nvs_handle_t nvs;
+        if (nvs_open("doorcam_cards", NVS_READONLY, &nvs) == ESP_OK) {
+            size_t len = sizeof(layout);
+            nvs_get_str(nvs, "layout", layout, &len);
+            nvs_close(nvs);
+        }
+        if (strcmp(layout, home_layout_last)) {
+            snprintf(home_layout_last, sizeof(home_layout_last), "%s", layout);
+            if (layout[0]) home_dynamic_rebuild(layout);
+            else lv_obj_add_flag(home_dynamic_area, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (layout[0]) {
+            lv_obj_remove_flag(home_dynamic_area, LV_OBJ_FLAG_HIDDEN);
+            dashboard_ha_watch_set((const char (*)[80])home_dynamic_ids, home_dynamic_count);
+        }
+    }
+    if (home_values_tick && lv_tick_elaps(home_values_tick) < 500) return;
+    home_values_tick = lv_tick_get();
+    for (unsigned i = 0; i < home_dynamic_count; ++i) {
+        char value[64] = {0};
+        const char *display = "--";
+        if (home_dynamic_ids[i][0] &&
+            dashboard_ha_watch_get(home_dynamic_ids[i], value, sizeof(value)))
+            display = value;
+        if (home_dynamic_values[i] && strcmp(lv_label_get_text(home_dynamic_values[i]), display))
+            lv_label_set_text(home_dynamic_values[i], display);
+    }
+}
+
 static lv_obj_t *home_clock_time;
 static lv_obj_t *home_clock_date;
 static lv_obj_t *home_camera_button;
@@ -547,6 +631,15 @@ void create_screen_door_cam() {
         lv_obj_t *clock = home_card(parent_obj, 406, 202, 382, 132);
         home_clock_time = home_label(clock, "--:--", 16, 32, HOME_CLOCK_FONT, 0x4ade80);
         home_clock_date = home_label(clock, "--.--.----", 16, 100, &ui_font_roboto, 0xb9cbe0);
+        home_dynamic_area = lv_obj_create(parent_obj);
+        lv_obj_set_pos(home_dynamic_area, 12, 66);
+        lv_obj_set_size(home_dynamic_area, 776, 268);
+        lv_obj_set_style_pad_all(home_dynamic_area, 0, 0);
+        lv_obj_set_style_border_width(home_dynamic_area, 0, 0);
+        lv_obj_set_style_bg_opa(home_dynamic_area, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(home_dynamic_area, lv_color_hex(0x101827), 0);
+        lv_obj_set_scroll_dir(home_dynamic_area, LV_DIR_VER);
+        lv_obj_add_flag(home_dynamic_area, LV_OBJ_FLAG_HIDDEN);
         lv_obj_align(home_clock_time, LV_ALIGN_CENTER, 0, -12);
         lv_obj_align(home_clock_date, LV_ALIGN_BOTTOM_MID, 0, -3);
         lv_obj_set_style_text_align(home_clock_time, LV_TEXT_ALIGN_CENTER, 0);
@@ -908,6 +1001,7 @@ void tick_screen_door_cam() {
     ha_settings_refresh();
     system_settings_refresh();
     wifi_password_refresh();
+    home_dynamic_tick();
     static uint32_t last_status_tick;
     static int last_ha = -1, last_wifi = -1;
     if (home_ha_status && home_wifi_status &&
