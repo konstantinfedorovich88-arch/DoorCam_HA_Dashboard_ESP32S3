@@ -326,6 +326,10 @@ static void screen_settings_tick(void)
 }
 
 
+static lv_obj_t *home_card(lv_obj_t *parent, int x, int y, int w, int h);
+static lv_obj_t *home_label(lv_obj_t *parent, const char *value, int x, int y,
+                            const lv_font_t *font, uint32_t color);
+
 #define HOME_DYNAMIC_MAX 8
 static lv_obj_t *home_dynamic_area;
 static lv_obj_t *home_dynamic_values[HOME_DYNAMIC_MAX];
@@ -389,10 +393,10 @@ static void home_dynamic_tick(void)
         if (strcmp(layout, home_layout_last)) {
             snprintf(home_layout_last, sizeof(home_layout_last), "%s", layout);
             if (layout[0]) home_dynamic_rebuild(layout);
-            else lv_obj_add_flag(home_dynamic_area, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_set_hidden(home_dynamic_area, true);
         }
         if (layout[0]) {
-            lv_obj_remove_flag(home_dynamic_area, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_hidden(home_dynamic_area, false);
             if (dashboard_ha_is_connected() && !home_watch_ready) {
                 dashboard_ha_watch_set((const char (*)[80])home_dynamic_ids, home_dynamic_count);
                 home_watch_ready = true;
@@ -644,7 +648,7 @@ void create_screen_door_cam() {
         lv_obj_set_style_bg_opa(home_dynamic_area, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(home_dynamic_area, lv_color_hex(0x101827), 0);
         lv_obj_set_scroll_dir(home_dynamic_area, LV_DIR_VER);
-        lv_obj_add_flag(home_dynamic_area, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_hidden(home_dynamic_area, true);
         lv_obj_align(home_clock_time, LV_ALIGN_CENTER, 0, -12);
         lv_obj_align(home_clock_date, LV_ALIGN_BOTTOM_MID, 0, -3);
         lv_obj_set_style_text_align(home_clock_time, LV_TEXT_ALIGN_CENTER, 0);
