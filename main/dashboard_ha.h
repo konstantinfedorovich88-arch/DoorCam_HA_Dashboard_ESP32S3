@@ -33,6 +33,6 @@ bool dashboard_ha_person_detected(void);
 bool dashboard_ha_is_connected(void);
 
 /* Configured dashboard sensors, independent from the HA Lovelace panel. */
-#define DASH_HA_WATCH_MAX 8
+#define DASH_HA_WATCH_MAX 16
 void dashboard_ha_watch_set(const char ids[DASH_HA_WATCH_MAX][80], unsigned count);
 bool dashboard_ha_watch_get(const char *entity_id, char *state, unsigned capacity);
