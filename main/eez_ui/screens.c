@@ -712,8 +712,6 @@ void create_screen_door_cam() {
         lv_obj_t *parent_obj = obj;
         objects.obj0 = home_card(parent_obj, 12, 4, 278, 52);
         objects.obj2 = home_label(objects.obj0, "Мой дом", 0, 10, &ui_font_roboto, 0x4ade80);
-        lv_obj_set_style_transform_scale_x(objects.obj2, 448, 0);
-        lv_obj_set_style_transform_scale_y(objects.obj2, 448, 0);
         lv_obj_set_width(objects.obj2, LV_SIZE_CONTENT);
         lv_obj_set_style_text_align(objects.obj2, LV_TEXT_ALIGN_LEFT, 0);
         objects.obj1 = home_card(parent_obj, 12, 66, 382, 132);
@@ -730,10 +728,6 @@ void create_screen_door_cam() {
         lv_obj_t *clock = home_card(parent_obj, 406, 66, 382, 128);
         lv_obj_t *date_panel = home_card(parent_obj, 488, 4, 228, 52);
         home_clock_time = home_label(clock, "--:--", 8, 2, HOME_CLOCK_FONT, 0x4ade80);
-        lv_obj_set_style_transform_pivot_x(home_clock_time, LV_PCT(50), 0);
-        lv_obj_set_style_transform_pivot_y(home_clock_time, LV_PCT(50), 0);
-        lv_obj_set_style_transform_scale_x(home_clock_time, 384, 0);
-        lv_obj_set_style_transform_scale_y(home_clock_time, 448, 0);
         home_clock_date = home_label(date_panel, "--.--.----", 5, 12, &ui_font_roboto, 0xb9cbe0);
         lv_obj_set_width(home_clock_date, 218);
         lv_label_set_long_mode(home_clock_date, LV_LABEL_LONG_DOT);
