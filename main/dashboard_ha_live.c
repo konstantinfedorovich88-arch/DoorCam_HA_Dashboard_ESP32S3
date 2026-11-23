@@ -20,6 +20,8 @@ static char *s_message;
 static int s_received, s_expected;
 static bool s_started;
 static bool s_person_detected;
+static char s_weather[64];
+static char s_forecast[64];
 
 static dashboard_ha_entity_t s_watched[DASH_HA_WATCH_MAX];
 static unsigned s_watched_count;
@@ -133,6 +135,16 @@ static void save_entity(const char *id, const char *state, const char *friendly,
     xSemaphoreGive(s_mutex);
 }
 
+bool dashboard_ha_weather_get(char *out, unsigned capacity)
+{
+    if (!s_mutex || !out || !capacity) return false;
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    snprintf(out, capacity, "%s%s%s", s_weather, s_forecast[0] ? "\n" : "", s_forecast);
+    bool ok = s_snapshot.connected && s_weather[0];
+    xSemaphoreGive(s_mutex);
+    return ok;
+}
+
 static void parse_state(cJSON *item)
 {
     if (!cJSON_IsObject(item)) return;
@@ -141,6 +153,16 @@ static void parse_state(cJSON *item)
     cJSON *attrs=cJSON_GetObjectItemCaseSensitive(item,"attributes");
     cJSON *friendly=cJSON_GetObjectItemCaseSensitive(attrs,"friendly_name");
     cJSON *unit=cJSON_GetObjectItemCaseSensitive(attrs,"unit_of_measurement");
+    if (cJSON_IsString(id) && !strcmp(id->valuestring,"weather.home_assistant")) {
+        cJSON *t=cJSON_GetObjectItemCaseSensitive(attrs,"temperature");
+        cJSON *h=cJSON_GetObjectItemCaseSensitive(attrs,"humidity");
+        cJSON *u=cJSON_GetObjectItemCaseSensitive(attrs,"temperature_unit");
+        xSemaphoreTake(s_mutex,portMAX_DELAY);
+        s_weather[0]=0;
+        if (cJSON_IsNumber(t)) snprintf(s_weather,sizeof(s_weather),"%.1f %s",t->valuedouble,cJSON_IsString(u)?u->valuestring:"");
+        if (cJSON_IsNumber(h)) { size_t n=strlen(s_weather); snprintf(s_weather+n,sizeof(s_weather)-n,"  %.0f%%",h->valuedouble); }
+        xSemaphoreGive(s_mutex);
+    }
     if (cJSON_IsString(id) && cJSON_IsString(state))
         save_entity(id->valuestring,state->valuestring,
                     cJSON_IsString(friendly)?friendly->valuestring:NULL,
@@ -169,7 +191,7 @@ static void panel_add(cJSON *card, dashboard_ha_snapshot_t *panel)
         }
     } else if (cJSON_IsString(type) && cJSON_IsString(entity) &&
                (!strcmp(type->valuestring,"tile") || !strcmp(type->valuestring,"sensor") ||
-                !strcmp(type->valuestring,"button"))) {
+                !strcmp(type->valuestring,"button") || !strcmp(type->valuestring,"weather-forecast") || !strcmp(type->valuestring,"entity"))) {
         dashboard_ha_entity_t *dst=&panel->panel_cards[panel->panel_count++];
         snprintf(dst->entity_id,sizeof(dst->entity_id),"%s",entity->valuestring);
         snprintf(dst->title,sizeof(dst->title),"%s",cJSON_IsString(title)?title->valuestring:entity->valuestring);
@@ -246,6 +268,8 @@ static void process_message(char *message)
         ESP_LOGI(TAG,"Home Assistant WebSocket authenticated");
         const char *subscribe="{\"id\":1,\"type\":\"subscribe_events\",\"event_type\":\"state_changed\"}";
         esp_websocket_client_send_text(s_ws,subscribe,strlen(subscribe),pdMS_TO_TICKS(1000));
+        const char *forecast="{\"id\":5,\"type\":\"call_service\",\"domain\":\"weather\",\"service\":\"get_forecasts\",\"service_data\":{\"type\":\"daily\"},\"target\":{\"entity_id\":\"weather.home_assistant\"},\"return_response\":true}";
+        esp_websocket_client_send_text(s_ws,forecast,strlen(forecast),pdMS_TO_TICKS(1000));
         const char *get_panel="{\"id\":3,\"type\":\"lovelace/config\",\"url_path\":\"doorcam-panel\"}";
         esp_websocket_client_send_text(s_ws,get_panel,strlen(get_panel),pdMS_TO_TICKS(1000));
     } else if (!strcmp(type->valuestring,"auth_invalid")) {
@@ -253,6 +277,17 @@ static void process_message(char *message)
     } else if (!strcmp(type->valuestring,"result")) {
         cJSON *id=cJSON_GetObjectItemCaseSensitive(root,"id");
         cJSON *success=cJSON_GetObjectItemCaseSensitive(root,"success");
+        if (cJSON_IsNumber(id) && id->valueint==5 && cJSON_IsTrue(success)) {
+            cJSON *response=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(root,"result"),"response");
+            cJSON *days=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(response,"weather.home_assistant"),"forecast");
+            cJSON *day=cJSON_GetArrayItem(days,0);
+            cJSON *hi=cJSON_GetObjectItemCaseSensitive(day,"temperature");
+            cJSON *lo=cJSON_GetObjectItemCaseSensitive(day,"templow");
+            xSemaphoreTake(s_mutex,portMAX_DELAY);
+            s_forecast[0]=0;
+            if (cJSON_IsNumber(hi) && cJSON_IsNumber(lo)) snprintf(s_forecast,sizeof(s_forecast),"%.0f / %.0f",hi->valuedouble,lo->valuedouble);
+            xSemaphoreGive(s_mutex);
+        }
         if (cJSON_IsNumber(id) && id->valueint==3) {
             if (cJSON_IsTrue(success)) {
                 parse_panel_config(cJSON_GetObjectItemCaseSensitive(root,"result"));
