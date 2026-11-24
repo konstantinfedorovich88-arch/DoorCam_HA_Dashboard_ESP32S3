@@ -435,7 +435,7 @@ static void home_dynamic_rebuild(const char *json)
             if (wide && column) { column = 0; y += 132; }
             int x = column ? 394 : 0;
             lv_obj_t *panel = home_card(home_dynamic_area, x, y, wide ? 776 : 382, 128);
-            lv_obj_t *heading = home_label(panel, title->valuestring, 16, 8, &ui_font_roboto, 0xb9cbe0);
+            lv_obj_t *heading = home_label(panel, title->valuestring, 12, 12, &ui_font_roboto, 0xb9cbe0);
             lv_obj_set_width(heading, wide ? 744 : 350);
             lv_label_set_long_mode(heading, LV_LABEL_LONG_DOT);
             unsigned index = home_dynamic_count++;
@@ -451,12 +451,12 @@ static void home_dynamic_rebuild(const char *json)
                 weather_icon_update(weather_icons[index],"unknown");
             }
             const lv_font_t *font = has_secondary || is_weather ? &ui_font_roboto : HOME_VALUE_FONT;
-            home_dynamic_values[index][0] = home_label(panel, "--", is_weather ? 94 : 16, has_secondary ? 40 : 44, font, 0xffffff);
+            home_dynamic_values[index][0] = home_label(panel, "--", is_weather ? 94 : 12, 41, font, 0xf1f5f9);
             lv_label_set_long_mode(home_dynamic_values[index][0], LV_LABEL_LONG_DOT);
             lv_obj_set_width(home_dynamic_values[index][0], is_weather ? (wide ? 620 : 260) : (wide ? 720 : 340));
             snprintf(home_dynamic_entity_ids[index][0], 80, "%s", entity->valuestring);
             if (has_secondary) {
-                home_dynamic_values[index][1] = home_label(panel, "--", 16, 80, &ui_font_roboto, 0x7fc8f8);
+                home_dynamic_values[index][1] = home_label(panel, "--", 12, 94, &ui_font_roboto, 0x7fc8f8);
                 lv_label_set_long_mode(home_dynamic_values[index][1], LV_LABEL_LONG_DOT);
                 lv_obj_set_width(home_dynamic_values[index][1], wide ? 720 : 340);
                 snprintf(home_dynamic_entity_ids[index][1], 80, "%s", secondary->valuestring);
@@ -760,7 +760,10 @@ void create_screen_door_cam() {
         lv_obj_t *parent_obj = obj;
         objects.obj0 = home_card(parent_obj, 12, 4, 278, 52);
         objects.obj2 = home_label(objects.obj0, "Мой дом", 0, 10, &ui_font_roboto, 0x4ade80);
-        lv_obj_set_style_transform_scale(objects.obj2, 340, 0);
+        lv_obj_set_style_transform_scale(objects.obj2, 404, 0);
+        lv_obj_set_style_transform_pivot_x(objects.obj2, 0, 0);
+        lv_obj_set_style_transform_pivot_y(objects.obj2, 0, 0);
+        lv_obj_set_pos(objects.obj2, 12, 6);
         lv_obj_set_width(objects.obj2, LV_SIZE_CONTENT);
         lv_obj_set_style_text_align(objects.obj2, LV_TEXT_ALIGN_LEFT, 0);
         objects.obj1 = home_card(parent_obj, 12, 66, 382, 132);
@@ -774,12 +777,20 @@ void create_screen_door_cam() {
         home_label(inside, "Климат в доме", 16, 8, &ui_font_roboto, 0xb9cbe0);
         home_label(inside, "-- C", 16, 32, HOME_VALUE_FONT, 0xffffff);
         home_label(inside, "Влажность: -- %", 16, 100, &ui_font_roboto, 0x7fc8f8);
-        lv_obj_t *clock = home_card(parent_obj, 290, 0, 190, 62);
+        lv_obj_t *clock = home_card(parent_obj, 305, 0, 190, 62);
         lv_obj_t *date_panel = home_card(parent_obj, 488, 4, 228, 52);
-        home_clock_time = home_label(clock, "--:--", 8, 2, HOME_CLOCK_FONT, 0x4ade80);
+        home_clock_time = home_label(clock, "--:--", 8, 2, HOME_CLOCK_FONT, 0xf1f5f9);
         home_clock_date = home_label(date_panel, "--.--.----", 5, 12, &ui_font_roboto, 0xb9cbe0);
         lv_obj_set_width(home_clock_date, 218);
         lv_label_set_long_mode(home_clock_date, LV_LABEL_LONG_DOT);
+        lv_obj_t *header_line = lv_obj_create(parent_obj);
+        lv_obj_set_pos(header_line, 24, 64);
+        lv_obj_set_size(header_line, 752, 1);
+        lv_obj_set_style_bg_color(header_line, lv_color_hex(0x334155), 0);
+        lv_obj_set_style_bg_opa(header_line, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(header_line, 0, 0);
+        lv_obj_set_style_pad_all(header_line, 0, 0);
+        lv_obj_set_scrollable(header_line, false);
         home_dynamic_area = lv_obj_create(parent_obj);
         lv_obj_set_pos(home_dynamic_area, 12, 66);
         lv_obj_set_size(home_dynamic_area, 776, 268);
@@ -797,7 +808,7 @@ void create_screen_door_cam() {
         home_pending_button(parent_obj, 20, 348, LV_SYMBOL_POWER, "Мастер-выключатель");
         home_camera_button = home_pending_button(parent_obj, 408, 348, LV_SYMBOL_VIDEO, "Просмотр камеры");
         home_ha_status = home_label(parent_obj, "Home Assistant: --", 16, 447, &ui_font_roboto, 0xb9cbe0);
-        home_wifi_status = home_label(parent_obj, "Wi-Fi: --", 408, 447, &ui_font_roboto, 0xb9cbe0);
+        home_wifi_status = home_label(parent_obj, "Wi-Fi: --", 540, 447, &ui_font_roboto, 0xb9cbe0);
         {
             // BtnSettings
             lv_obj_t *obj = lv_button_create(parent_obj);
