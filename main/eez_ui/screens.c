@@ -584,7 +584,7 @@ static void home_dynamic_tick(void)
                 if (lv_obj_get_style_text_font(home_dynamic_values[i][j], 0) != font)
                     lv_obj_set_style_text_font(home_dynamic_values[i][j], font, 0);
             }
-            char humidity[96];
+            char humidity[160];
             if (j == 1 && strstr(home_dynamic_entity_ids[i][j], "humidity")) {
                 snprintf(humidity,sizeof(humidity),"Влажность: %s",display);
                 display=humidity;
