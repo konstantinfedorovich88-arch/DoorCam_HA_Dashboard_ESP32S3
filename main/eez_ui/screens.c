@@ -41,6 +41,8 @@ lv_obj_t *tick_value_change_obj;
 #define HOME_VALUE_FONT (&lv_font_montserrat_28)
 #elif LV_FONT_MONTSERRAT_24
 #define HOME_VALUE_FONT (&lv_font_montserrat_24)
+#elif LV_FONT_MONTSERRAT_22
+#define HOME_VALUE_FONT (&lv_font_montserrat_22)
 #else
 #define HOME_VALUE_FONT (&ui_font_roboto)
 #endif
@@ -416,7 +418,9 @@ static void home_dynamic_rebuild(const char *json)
             if (wide && column) { column = 0; y += 132; }
             int x = column ? 394 : 0;
             lv_obj_t *panel = home_card(home_dynamic_area, x, y, wide ? 776 : 382, 128);
-            home_label(panel, title->valuestring, 16, 8, &ui_font_roboto, 0xb9cbe0);
+            lv_obj_t *heading = home_label(panel, title->valuestring, 16, 8, &ui_font_roboto, 0xb9cbe0);
+            lv_obj_set_width(heading, wide ? 744 : 350);
+            lv_label_set_long_mode(heading, LV_LABEL_LONG_DOT);
             unsigned index = home_dynamic_count++;
             bool is_weather = !strncmp(entity->valuestring,"weather.",8);
             if (is_weather) {
@@ -517,6 +521,13 @@ static void home_dynamic_tick(void)
             }
             char weather[128];
             if (j == 0 && !strcmp(home_dynamic_entity_ids[i][j],"weather.home_assistant") && dashboard_ha_weather_get(weather,sizeof(weather))) display=weather;
+            /* Use the larger Latin font only for numeric values; keep Cyrillic in Roboto. */
+            if (j == 0 && !weather_icons[i]) {
+                bool numeric = display[0] && strspn(display, "0123456789+-. ,%°CF") == strlen(display);
+                const lv_font_t *font = numeric ? HOME_VALUE_FONT : &ui_font_roboto;
+                if (lv_obj_get_style_text_font(home_dynamic_values[i][j], 0) != font)
+                    lv_obj_set_style_text_font(home_dynamic_values[i][j], font, 0);
+            }
             if (strcmp(lv_label_get_text(home_dynamic_values[i][j]), display))
                 lv_label_set_text(home_dynamic_values[i][j], display);
         }
@@ -681,7 +692,7 @@ static lv_obj_t *home_card(lv_obj_t *parent, int x, int y, int w, int h)
     lv_obj_set_style_pad_all(o, 0, 0);
     lv_obj_set_style_border_width(o, 0, 0);
     lv_obj_set_style_radius(o, 16, 0);
-    lv_obj_set_style_bg_color(o, lv_color_hex(0x101827), 0);
+    lv_obj_set_style_bg_color(o, lv_color_hex(0x1d3044), 0);
     lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
     return o;
 }
@@ -1150,13 +1161,13 @@ void tick_screen_door_cam() {
         if (detected != last_detected || last_button != home_camera_button) {
             last_detected = detected;
             last_button = home_camera_button;
-            lv_color_t bg = lv_color_hex(detected ? 0xffd600 : 0x24354b);
+            lv_color_t bg = lv_color_hex(detected ? 0xf59e0b : 0x24354b);
             lv_obj_set_style_bg_color(home_camera_button, bg, 0);
             lv_obj_set_style_bg_color(home_camera_button, bg, LV_STATE_DISABLED);
             lv_obj_set_style_text_color(lv_obj_get_child(home_camera_button, 0),
-                lv_color_hex(detected ? 0x202020 : 0x94a9c2), 0);
+                lv_color_hex(detected ? 0x101827 : 0xb9cbe0), 0);
             lv_obj_set_style_text_color(lv_obj_get_child(home_camera_button, 1),
-                lv_color_hex(detected ? 0x202020 : 0xb9cbe0), 0);
+                lv_color_hex(detected ? 0x101827 : 0xffffff), 0);
         }
     }
     static time_t last_minute = -1;
