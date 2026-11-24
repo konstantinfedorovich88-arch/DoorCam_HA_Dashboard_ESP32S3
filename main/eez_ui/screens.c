@@ -228,10 +228,15 @@ static lv_obj_t *screen_timeout_label;
 static uint32_t screen_last_activity;
 static uint32_t screen_timeout_ms = 60000;
 static bool screen_backlight_on = true;
+static lv_obj_t *idle_overlay, *idle_time, *idle_date, *idle_climate;
+static bool idle_requested;
+static uint32_t screen_mode = 0; /* 0 clock, 1 backlight off, 2 always on */
+static lv_obj_t *screen_mode_label;
 
 void dashboard_screen_touch_activity(void)
 {
     screen_last_activity = lv_tick_get();
+    idle_requested = false;
     if (!screen_backlight_on) {
         if (dashboard_board_backlight_set(true) == ESP_OK)
             screen_backlight_on = true;
@@ -243,6 +248,7 @@ static void screen_settings_save(void)
     nvs_handle_t h;
     if (nvs_open("doorcam_screen", NVS_READWRITE, &h) == ESP_OK) {
         nvs_set_u32(h, "timeout_ms", screen_timeout_ms);
+        nvs_set_u32(h, "mode", screen_mode);
         nvs_commit(h);
         nvs_close(h);
     }
@@ -256,6 +262,7 @@ static void screen_settings_load(void)
         if (nvs_get_u32(h, "timeout_ms", &value) == ESP_OK &&
             (value == 0 || value == 30000 || value == 60000 || value == 300000))
             screen_timeout_ms = value;
+        if (nvs_get_u32(h, "mode", &value) == ESP_OK && value <= 2) screen_mode = value;
         nvs_close(h);
     }
     screen_last_activity = lv_tick_get();
@@ -277,6 +284,15 @@ static void screen_timeout_cycle(lv_event_t *e)
         screen_timeout_ms == 30000 ? 60000 :
         screen_timeout_ms == 60000 ? 300000 : 0;
     screen_timeout_update_label();
+    screen_settings_save();
+    dashboard_screen_touch_activity();
+}
+
+static void screen_mode_cycle(lv_event_t *e)
+{
+    (void)e;
+    screen_mode = (screen_mode + 1) % 3;
+    lv_label_set_text(screen_mode_label, screen_mode == 0 ? "Заставка" : screen_mode == 1 ? "Отключение" : "Всегда включён");
     screen_settings_save();
     dashboard_screen_touch_activity();
 }
@@ -320,9 +336,10 @@ static void screen_settings_tick(void)
 
     bool person_hold = person_detected ||
         (person_last_seen != 0 && lv_tick_elaps(person_last_seen) < SCREEN_PERSON_HOLD_MS);
-    if (person_hold || !screen_backlight_on || screen_timeout_ms == 0) return;
+    if (person_hold || !screen_backlight_on || screen_timeout_ms == 0 || screen_mode == 2) return;
     if (lv_tick_elaps(screen_last_activity) >= screen_timeout_ms) {
-        if (dashboard_board_backlight_set(false) == ESP_OK)
+        if (screen_mode == 0) idle_requested = true;
+        else if (dashboard_board_backlight_set(false) == ESP_OK)
             screen_backlight_on = false;
     }
 }
@@ -414,7 +431,7 @@ static void home_dynamic_rebuild(const char *json)
             cJSON *size = cJSON_GetObjectItemCaseSensitive(card, "size");
             if (!cJSON_IsString(title) || !cJSON_IsString(entity)) continue;
             bool has_secondary = cJSON_IsString(secondary) && secondary->valuestring[0];
-            bool wide = y != 0 && cJSON_IsString(size) && !strcmp(size->valuestring, "wide");
+            bool wide = cJSON_IsString(size) && !strcmp(size->valuestring, "wide");
             if (wide && column) { column = 0; y += 132; }
             int x = column ? 394 : 0;
             lv_obj_t *panel = home_card(home_dynamic_area, x, y, wide ? 776 : 382, 128);
@@ -444,7 +461,7 @@ static void home_dynamic_rebuild(const char *json)
                 lv_obj_set_width(home_dynamic_values[index][1], wide ? 720 : 340);
                 snprintf(home_dynamic_entity_ids[index][1], 80, "%s", secondary->valuestring);
             }
-            if (y == 0 || wide || column) { column = 0; y += 132; }
+            if (wide || column) { column = 0; y += 132; }
             else column = 1;
         }
     }
@@ -692,7 +709,7 @@ static lv_obj_t *home_card(lv_obj_t *parent, int x, int y, int w, int h)
     lv_obj_set_style_pad_all(o, 0, 0);
     lv_obj_set_style_border_width(o, 0, 0);
     lv_obj_set_style_radius(o, 16, 0);
-    lv_obj_set_style_bg_color(o, lv_color_hex(0x1d3044), 0);
+    lv_obj_set_style_bg_color(o, lv_color_hex(0x101827), 0);
     lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
     return o;
 }
@@ -743,6 +760,7 @@ void create_screen_door_cam() {
         lv_obj_t *parent_obj = obj;
         objects.obj0 = home_card(parent_obj, 12, 4, 278, 52);
         objects.obj2 = home_label(objects.obj0, "Мой дом", 0, 10, &ui_font_roboto, 0x4ade80);
+        lv_obj_set_style_transform_scale(objects.obj2, 340, 0);
         lv_obj_set_width(objects.obj2, LV_SIZE_CONTENT);
         lv_obj_set_style_text_align(objects.obj2, LV_TEXT_ALIGN_LEFT, 0);
         objects.obj1 = home_card(parent_obj, 12, 66, 382, 132);
@@ -756,7 +774,7 @@ void create_screen_door_cam() {
         home_label(inside, "Климат в доме", 16, 8, &ui_font_roboto, 0xb9cbe0);
         home_label(inside, "-- C", 16, 32, HOME_VALUE_FONT, 0xffffff);
         home_label(inside, "Влажность: -- %", 16, 100, &ui_font_roboto, 0x7fc8f8);
-        lv_obj_t *clock = home_card(parent_obj, 406, 66, 382, 128);
+        lv_obj_t *clock = home_card(parent_obj, 290, 0, 190, 62);
         lv_obj_t *date_panel = home_card(parent_obj, 488, 4, 228, 52);
         home_clock_time = home_label(clock, "--:--", 8, 2, HOME_CLOCK_FONT, 0x4ade80);
         home_clock_date = home_label(date_panel, "--.--.----", 5, 12, &ui_font_roboto, 0xb9cbe0);
@@ -893,6 +911,12 @@ void create_screen_door_cam() {
             lv_obj_set_style_text_color(screen_timeout_label, lv_color_hex(0x3cffde), 0);
             lv_obj_center(screen_timeout_label);
             screen_timeout_update_label();
+            lv_obj_t *mode_btn = lv_button_create(settings_screen_page);
+            lv_obj_set_pos(mode_btn, 12, 235);
+            lv_obj_set_size(mode_btn, 240, 40);
+            screen_mode_label = home_label(mode_btn, screen_mode == 0 ? "Заставка" : screen_mode == 1 ? "Отключение" : "Всегда включён", 0, 0, &ui_font_roboto, 0xffffff);
+            lv_obj_center(screen_mode_label);
+            lv_obj_add_event_cb(mode_btn, screen_mode_cycle, LV_EVENT_CLICKED, NULL);
             lv_obj_t *screen_note = home_label(settings_screen_page,
                 "Касание включает подсветку снова.", 12, 202, &ui_font_roboto, 0xb9cbe0);
             lv_obj_set_width(screen_note, 410);
@@ -1169,6 +1193,35 @@ void tick_screen_door_cam() {
             lv_obj_set_style_text_color(lv_obj_get_child(home_camera_button, 1),
                 lv_color_hex(detected ? 0x101827 : 0xffffff), 0);
         }
+    }
+    if (!idle_overlay && idle_requested) {
+        idle_overlay = lv_obj_create(lv_layer_top());
+        lv_obj_set_size(idle_overlay, 800, 480);
+        lv_obj_center(idle_overlay);
+        lv_obj_set_scrollable(idle_overlay, false);
+        lv_obj_set_style_bg_color(idle_overlay, lv_color_hex(0x080e17), 0);
+        lv_obj_set_style_bg_opa(idle_overlay, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(idle_overlay, 0, 0);
+        lv_obj_set_style_radius(idle_overlay, 0, 0);
+        idle_time = home_label(idle_overlay, "--:--", 0, 0, HOME_CLOCK_FONT, 0xb9dfd5);
+        lv_obj_align(idle_time, LV_ALIGN_CENTER, 0, -100);
+        lv_obj_set_style_transform_scale(idle_time, 512, 0);
+        idle_date = home_label(idle_overlay, "", 0, 0, &ui_font_roboto, 0xb9cbe0);
+        lv_obj_align(idle_date, LV_ALIGN_CENTER, 0, -15);
+        idle_climate = home_label(idle_overlay, "", 0, 0, &ui_font_roboto, 0xb9cbe0);
+        lv_obj_align(idle_climate, LV_ALIGN_CENTER, 0, 80);
+    }
+    if (idle_overlay && !idle_requested) {
+        lv_obj_delete(idle_overlay);
+        idle_overlay = idle_time = idle_date = idle_climate = NULL;
+    }
+    if (idle_overlay) {
+        const char *clock_text = lv_label_get_text(home_clock_time);
+        const char *date_text = lv_label_get_text(home_clock_date);
+        if (strcmp(lv_label_get_text(idle_time), clock_text)) lv_label_set_text(idle_time, clock_text);
+        if (strcmp(lv_label_get_text(idle_date), date_text)) lv_label_set_text(idle_date, date_text);
+        char climate[128] = "";
+        if (dashboard_ha_weather_get(climate, sizeof(climate)) && strcmp(lv_label_get_text(idle_climate), climate)) lv_label_set_text(idle_climate, climate);
     }
     static time_t last_minute = -1;
     time_t now = time(NULL);
