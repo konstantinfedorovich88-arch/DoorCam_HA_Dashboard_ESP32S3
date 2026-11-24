@@ -450,7 +450,8 @@ static void home_dynamic_rebuild(const char *json)
                 if (weather_card) weather_y += 132; else climate_y += 132;
             }
             lv_obj_t *panel = home_card(home_dynamic_area, x, card_y, wide ? 776 : 382, 128);
-            lv_obj_t *heading = home_label(panel, title->valuestring, 12, 12, &ui_font_roboto, 0xb9cbe0);
+            const char *heading_text = !strcmp(title->valuestring, "0xa4c13884c062e7b9") ? "Климат" : title->valuestring;
+            lv_obj_t *heading = home_label(panel, heading_text, 12, 12, &ui_font_roboto, 0xb9cbe0);
             lv_obj_set_width(heading, wide ? 744 : 350);
             lv_label_set_long_mode(heading, LV_LABEL_LONG_DOT);
             unsigned index = home_dynamic_count++;
