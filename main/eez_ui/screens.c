@@ -356,9 +356,98 @@ static lv_obj_t *home_dynamic_values[HOME_DYNAMIC_MAX][2];
 static char home_dynamic_ids[DASH_HA_WATCH_MAX][80];
 static char home_dynamic_entity_ids[HOME_DYNAMIC_MAX][2][80];
 static char home_layout_last[2048];
+static lv_obj_t *cards_page, *cards_list, *cards_status;
+static cJSON *cards_edit;
+static int cards_selected;
+static void cards_select(lv_event_t *e);
+static void cards_refresh(void)
+{
+    lv_obj_clean(cards_list);
+    cJSON *a=cJSON_GetObjectItemCaseSensitive(cards_edit,"cards");
+    int n=cJSON_GetArraySize(a);
+    if (cards_selected>=n) cards_selected=n-1;
+    if (cards_selected<0 && n) cards_selected=0;
+    for (int i=0;i<n;i++) {
+        cJSON *c=cJSON_GetArrayItem(a,i);
+        cJSON *t=cJSON_GetObjectItemCaseSensitive(c,"title");
+        lv_obj_t *b=lv_button_create(cards_list);
+        lv_obj_set_size(b,390,42);
+        lv_obj_set_pos(b,0,i*48);
+        lv_obj_set_style_bg_color(b,lv_color_hex(i==cards_selected?0x386879:0x24354b),0);
+        lv_obj_t *l=lv_label_create(b);
+        lv_obj_set_style_text_font(l,&ui_font_roboto,0);
+        lv_label_set_text(l,cJSON_IsString(t)?t->valuestring:"--");
+        lv_obj_set_width(l,360);
+        lv_label_set_long_mode(l,LV_LABEL_LONG_DOT);
+        lv_obj_center(l);
+        lv_obj_add_event_cb(b,cards_select,LV_EVENT_CLICKED,(void *)(intptr_t)i);
+    }
+}
+
 static unsigned home_dynamic_count;
 static char home_dynamic_titles[HOME_DYNAMIC_MAX][80];
 static uint32_t home_layout_tick;
+static void cards_select(lv_event_t *e)
+{
+    cards_selected=(int)(intptr_t)lv_event_get_user_data(e);
+    cards_refresh();
+}
+static void cards_action(lv_event_t *e)
+{
+    int action=(int)(intptr_t)lv_event_get_user_data(e);
+    cJSON *a=cJSON_GetObjectItemCaseSensitive(cards_edit,"cards");
+    int n=cJSON_GetArraySize(a);
+    if (action==0 || action==1) {
+        int to=cards_selected+(action==0?-1:1);
+        if (cards_selected>=0 && to>=0 && to<n) {
+            cJSON *item=cJSON_DetachItemFromArray(a,cards_selected);
+            cJSON_InsertItemInArray(a,to,item);
+            cards_selected=to;
+        }
+    } else if (action==2 && cards_selected>=0) {
+        cJSON_DeleteItemFromArray(a,cards_selected);
+    } else if (action==3 || action==4) {
+        nvs_handle_t h;
+        esp_err_t err=nvs_open("doorcam_cards",NVS_READWRITE,&h);
+        if (err==ESP_OK) {
+            if (action==4) {
+                err=nvs_erase_key(h,"override");
+                if (err==ESP_ERR_NVS_NOT_FOUND) err=ESP_OK;
+            } else {
+                char *json=cJSON_PrintUnformatted(cards_edit);
+                err=json && strlen(json)<sizeof(home_layout_last)?nvs_set_str(h,"override",json):ESP_ERR_INVALID_SIZE;
+                if (json) cJSON_free(json);
+            }
+            if (err==ESP_OK) err=nvs_commit(h);
+            nvs_close(h);
+        }
+        lv_label_set_text(cards_status,err==ESP_OK?"Сохранено":"Ошибка сохранения");
+        if (err==ESP_OK) home_layout_tick=0;
+        return;
+    }
+    cards_refresh();
+}
+static void cards_open(lv_event_t *e)
+{
+    (void)e;
+    cJSON_Delete(cards_edit);
+    cards_edit=cJSON_Parse(home_layout_last);
+    if (!cards_edit) { cards_edit=cJSON_CreateObject(); cJSON_AddArrayToObject(cards_edit,"cards"); }
+    cards_selected=0;
+    cards_refresh();
+    lv_label_set_text(cards_status,"");
+    lv_obj_set_hidden(settings_main,true);
+    lv_obj_set_hidden(cards_page,false);
+}
+static void cards_back(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_set_hidden(cards_page,true);
+    lv_obj_set_hidden(settings_main,false);
+    cJSON_Delete(cards_edit);
+    cards_edit=NULL;
+}
+
 static uint32_t home_values_tick;
 static bool home_watch_ready;
 
@@ -588,6 +677,12 @@ static void home_dynamic_tick(void)
         if (!home_panel_snapshot.panel_loaded && nvs_open("doorcam_cards", NVS_READONLY, &nvs) == ESP_OK) {
             size_t len = sizeof(layout);
             nvs_get_str(nvs, "layout", layout, &len);
+            nvs_close(nvs);
+        }
+        if (nvs_open("doorcam_cards",NVS_READONLY,&nvs)==ESP_OK) {
+            size_t len=sizeof(layout);
+            char local[2048];
+            if (nvs_get_str(nvs,"override",local,&len)==ESP_OK) snprintf(layout,sizeof(layout),"%s",local);
             nvs_close(nvs);
         }
         if (strcmp(layout, home_layout_last)) {
@@ -974,12 +1069,12 @@ void create_screen_door_cam() {
             lv_obj_set_style_text_font(close, &ui_font_roboto, 0);
             lv_obj_set_style_text_color(close, lv_color_hex(0xf87171), 0);
             lv_obj_center(close);
-            const char *titles[] = {"Wi-Fi", "Экран", "Звук", "Home Assistant", "Система"};
-            const char *symbols[] = {LV_SYMBOL_WIFI, LV_SYMBOL_IMAGE, LV_SYMBOL_VOLUME_MAX, LV_SYMBOL_HOME, LV_SYMBOL_SETTINGS};
-            for (int i = 0; i < 5; i++) {
+            const char *titles[] = {"Wi-Fi", "Экран", "Звук", "Home Assistant", "Система", "Карточки"};
+            const char *symbols[] = {LV_SYMBOL_WIFI, LV_SYMBOL_IMAGE, LV_SYMBOL_VOLUME_MAX, LV_SYMBOL_HOME, LV_SYMBOL_SETTINGS, LV_SYMBOL_LIST};
+            for (int i = 0; i < 6; i++) {
                 lv_obj_t *button = lv_button_create(obj);
-                lv_obj_set_pos(button, 16, 64 + i * 70);
-                lv_obj_set_size(button, 426, 58);
+                lv_obj_set_pos(button, 16, 64 + i * 59);
+                lv_obj_set_size(button, 426, 51);
                 lv_obj_set_style_radius(button, 12, 0);
                 lv_obj_set_style_pad_all(button, 0, 0);
                 lv_obj_set_style_bg_color(button, lv_color_hex(0x24354b), 0);
@@ -994,6 +1089,7 @@ void create_screen_door_cam() {
                 if (i == 2) lv_obj_add_event_cb(button, sound_settings_open, LV_EVENT_CLICKED, NULL);
                 if (i == 3) lv_obj_add_event_cb(button, ha_settings_open, LV_EVENT_CLICKED, NULL);
                 if (i == 4) lv_obj_add_event_cb(button, system_settings_open, LV_EVENT_CLICKED, NULL);
+                if (i == 5) lv_obj_add_event_cb(button,cards_open,LV_EVENT_CLICKED,NULL);
                 switch (i) {
                     case 0: objects.obj11 = label; break;
                     case 1: objects.obj10 = button; break;
@@ -1002,6 +1098,32 @@ void create_screen_door_cam() {
                     case 4: objects.obj7 = button; break;
                 }
             }
+            cards_page=lv_obj_create(parent_obj);
+            lv_obj_set_pos(cards_page,170,25);
+            lv_obj_set_size(cards_page,460,430);
+            lv_obj_set_style_bg_color(cards_page,lv_color_hex(0x172234),0);
+            lv_obj_set_style_pad_all(cards_page,12,0);
+            lv_obj_set_scrollable(cards_page,false);
+            lv_obj_set_hidden(cards_page,true);
+            lv_obj_t *cb=lv_button_create(cards_page);
+            lv_obj_set_size(cb,90,40);
+            lv_obj_add_event_cb(cb,cards_back,LV_EVENT_CLICKED,NULL);
+            lv_obj_center(home_label(cb,"Назад",0,0,&ui_font_roboto,0xffffff));
+            home_label(cards_page,"Карточки",130,8,&ui_font_roboto,0x3cffde);
+            cards_list=lv_obj_create(cards_page);
+            lv_obj_set_pos(cards_list,0,50);
+            lv_obj_set_size(cards_list,430,220);
+            lv_obj_set_style_bg_opa(cards_list,LV_OPA_TRANSP,0);
+            lv_obj_set_style_pad_all(cards_list,4,0);
+            const char *actions[]={"Вверх","Вниз","Удалить","Сохранить","Из HA"};
+            for (int j=0;j<5;j++) {
+                lv_obj_t *b=lv_button_create(cards_page);
+                lv_obj_set_pos(b,j<3?j*142:(j-3)*212,j<3?278:330);
+                lv_obj_set_size(b,j<3?134:204,44);
+                lv_obj_center(home_label(b,actions[j],0,0,&ui_font_roboto,0xffffff));
+                lv_obj_add_event_cb(b,cards_action,LV_EVENT_CLICKED,(void *)(intptr_t)j);
+            }
+            cards_status=home_label(cards_page,"",0,380,&ui_font_roboto,0x3cffde);
             settings_screen_page = lv_obj_create(parent_obj);
             lv_obj_set_pos(settings_screen_page, 170, 25);
             lv_obj_set_size(settings_screen_page, 460, 430);
