@@ -71,7 +71,7 @@ static void ha_tx_task(void *arg)
     }
 }
 static bool s_person_detected;
-static char s_weather[64];
+static char s_weather[96];
 static char s_forecast[64];
 static char s_daily[7][64];
 static char s_daily_condition[7][32];
@@ -221,7 +221,7 @@ static void parse_state(cJSON *item)
         xSemaphoreTake(s_mutex,portMAX_DELAY);
         s_weather[0]=0;
         if (cJSON_IsNumber(t)) snprintf(s_weather,sizeof(s_weather),"%.1f %s",t->valuedouble,cJSON_IsString(u)?u->valuestring:"");
-        if (cJSON_IsNumber(h)) { size_t n=strlen(s_weather); snprintf(s_weather+n,sizeof(s_weather)-n,"  %.0f%%",h->valuedouble); }
+        if (cJSON_IsNumber(h)) { size_t n=strlen(s_weather); snprintf(s_weather+n,sizeof(s_weather)-n,"\nВлажность: %.0f%%",h->valuedouble); }
         xSemaphoreGive(s_mutex);
     }
     if (cJSON_IsString(id) && cJSON_IsString(state))
