@@ -230,6 +230,7 @@ static uint32_t screen_timeout_ms = 60000;
 static bool screen_backlight_on = true;
 static lv_obj_t *idle_overlay, *idle_time, *idle_date, *idle_climate;
 static bool idle_requested;
+static lv_obj_t *idle_sensor_title[2], *idle_sensor_temp[2], *idle_sensor_hum[2];
 static uint32_t screen_mode = 0; /* 0 clock, 1 backlight off, 2 always on */
 static lv_obj_t *screen_mode_label;
 
@@ -356,6 +357,7 @@ static char home_dynamic_ids[DASH_HA_WATCH_MAX][80];
 static char home_dynamic_entity_ids[HOME_DYNAMIC_MAX][2][80];
 static char home_layout_last[2048];
 static unsigned home_dynamic_count;
+static char home_dynamic_titles[HOME_DYNAMIC_MAX][80];
 static uint32_t home_layout_tick;
 static uint32_t home_values_tick;
 static bool home_watch_ready;
@@ -434,6 +436,7 @@ static void home_dynamic_rebuild(const char *json)
     memset(home_dynamic_ids, 0, sizeof(home_dynamic_ids));
     memset(home_dynamic_entity_ids, 0, sizeof(home_dynamic_entity_ids));
     home_dynamic_count = 0;
+    memset(home_dynamic_titles,0,sizeof(home_dynamic_titles));
     cJSON *root = cJSON_Parse(json);
     cJSON *cards = cJSON_GetObjectItemCaseSensitive(root, "cards");
     if (cJSON_IsArray(cards)) {
@@ -471,6 +474,7 @@ static void home_dynamic_rebuild(const char *json)
             lv_obj_set_width(heading, wide ? 744 : 350);
             lv_label_set_long_mode(heading, LV_LABEL_LONG_DOT);
             unsigned index = home_dynamic_count++;
+            snprintf(home_dynamic_titles[index],sizeof(home_dynamic_titles[index]),"%s",heading_text);
             bool is_weather = !strncmp(entity->valuestring,"weather.",8);
             if (is_weather) {
                 weather_icons[index] = lv_obj_create(panel);
@@ -1321,12 +1325,18 @@ void tick_screen_door_cam() {
         lv_obj_set_style_border_width(idle_overlay, 0, 0);
         lv_obj_set_style_radius(idle_overlay, 0, 0);
         idle_time = home_label(idle_overlay, "--:--", 0, 0, HOME_CLOCK_FONT, 0xb9dfd5);
-        lv_obj_align(idle_time, LV_ALIGN_CENTER, 0, -100);
+        lv_obj_align(idle_time, LV_ALIGN_CENTER, 0, -145);
 
         idle_date = home_label(idle_overlay, "", 0, 0, &ui_font_roboto, 0xb9cbe0);
-        lv_obj_align(idle_date, LV_ALIGN_CENTER, 0, -15);
-        idle_climate = home_label(idle_overlay, "", 0, 0, &ui_font_roboto, 0xb9cbe0);
-        lv_obj_align(idle_climate, LV_ALIGN_CENTER, 0, 80);
+        lv_obj_align(idle_date, LV_ALIGN_CENTER, 0, -75);
+        for (unsigned k=0;k<2;k++) {
+            int x=90+k*350;
+            idle_sensor_title[k]=home_label(idle_overlay,"--",x,245,&ui_font_roboto,0xb9cbe0);
+            idle_sensor_temp[k]=home_label(idle_overlay,"--",x,280,HOME_CLOCK_FONT,0xf1f5f9);
+            idle_sensor_hum[k]=home_label(idle_overlay,"--",x,345,&ui_font_roboto,0x7fc8f8);
+        }
+        idle_climate = home_label(idle_overlay, "Коснитесь экрана для выхода", 0, 0, &ui_font_roboto, 0x94a3b8);
+        lv_obj_align(idle_climate, LV_ALIGN_BOTTOM_MID, 0, -20);
     }
     if (idle_overlay && !idle_requested) {
         lv_obj_delete(idle_overlay);
@@ -1337,8 +1347,22 @@ void tick_screen_door_cam() {
         const char *date_text = lv_label_get_text(home_clock_date);
         if (strcmp(lv_label_get_text(idle_time), clock_text)) lv_label_set_text(idle_time, clock_text);
         if (strcmp(lv_label_get_text(idle_date), date_text)) lv_label_set_text(idle_date, date_text);
-        char climate[128] = "";
-        if (dashboard_ha_weather_get(climate, sizeof(climate)) && strcmp(lv_label_get_text(idle_climate), climate)) lv_label_set_text(idle_climate, climate);
+        unsigned k=0;
+        for (unsigned i=0;i<home_dynamic_count && k<2;i++) {
+            if (weather_icons[i] || !home_dynamic_values[i][0] || !home_dynamic_values[i][1]) continue;
+            const char *title=home_dynamic_titles[i];
+            const char *temp=lv_label_get_text(home_dynamic_values[i][0]);
+            const char *hum=lv_label_get_text(home_dynamic_values[i][1]);
+            if (strcmp(lv_label_get_text(idle_sensor_title[k]),title)) lv_label_set_text(idle_sensor_title[k],title);
+            if (strcmp(lv_label_get_text(idle_sensor_temp[k]),temp)) lv_label_set_text(idle_sensor_temp[k],temp);
+            if (strcmp(lv_label_get_text(idle_sensor_hum[k]),hum)) lv_label_set_text(idle_sensor_hum[k],hum);
+            k++;
+        }
+        for (;k<2;k++) {
+            if (strcmp(lv_label_get_text(idle_sensor_title[k]),"--")) lv_label_set_text(idle_sensor_title[k],"--");
+            if (strcmp(lv_label_get_text(idle_sensor_temp[k]),"--")) lv_label_set_text(idle_sensor_temp[k],"--");
+            if (strcmp(lv_label_get_text(idle_sensor_hum[k]),"--")) lv_label_set_text(idle_sensor_hum[k],"--");
+        }
     }
     static time_t last_minute = -1;
     time_t now = time(NULL);
