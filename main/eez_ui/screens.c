@@ -427,9 +427,12 @@ static void cards_action(lv_event_t *e)
     }
     cards_refresh();
 }
+static void cards_back(lv_event_t *e);
+static void cards_create(void);
 static void cards_open(lv_event_t *e)
 {
     (void)e;
+    if (!cards_page) cards_create();
     cJSON_Delete(cards_edit);
     cards_edit=cJSON_Parse(home_layout_last);
     if (!cards_edit) { cards_edit=cJSON_CreateObject(); cJSON_AddArrayToObject(cards_edit,"cards"); }
@@ -442,11 +445,43 @@ static void cards_open(lv_event_t *e)
 static void cards_back(lv_event_t *e)
 {
     (void)e;
-    lv_obj_set_hidden(cards_page,true);
     lv_obj_set_hidden(settings_main,false);
+    lv_obj_delete_async(cards_page);
+    cards_page=cards_list=cards_status=NULL;
     cJSON_Delete(cards_edit);
     cards_edit=NULL;
 }
+static void cards_create(void)
+{
+            cards_page=lv_obj_create(lv_obj_get_parent(settings_main));
+            lv_obj_set_pos(cards_page,170,25);
+            lv_obj_set_size(cards_page,460,430);
+            lv_obj_set_style_bg_color(cards_page,lv_color_hex(0x172234),0);
+            lv_obj_set_style_pad_all(cards_page,12,0);
+            lv_obj_set_scrollable(cards_page,false);
+            lv_obj_set_hidden(cards_page,true);
+            lv_obj_t *cb=lv_button_create(cards_page);
+            lv_obj_set_size(cb,90,40);
+            lv_obj_add_event_cb(cb,cards_back,LV_EVENT_CLICKED,NULL);
+            lv_obj_center(home_label(cb,"Назад",0,0,&ui_font_roboto,0xffffff));
+            home_label(cards_page,"Карточки",130,8,&ui_font_roboto,0x3cffde);
+            cards_list=lv_obj_create(cards_page);
+            lv_obj_set_pos(cards_list,0,50);
+            lv_obj_set_size(cards_list,430,220);
+            lv_obj_set_style_bg_opa(cards_list,LV_OPA_TRANSP,0);
+            lv_obj_set_style_pad_all(cards_list,4,0);
+            const char *actions[]={"Вверх","Вниз","Удалить","Сохранить","Из HA"};
+            for (int j=0;j<5;j++) {
+                lv_obj_t *b=lv_button_create(cards_page);
+                lv_obj_set_pos(b,j<3?j*142:(j-3)*212,j<3?278:330);
+                lv_obj_set_size(b,j<3?134:204,44);
+                lv_obj_center(home_label(b,actions[j],0,0,&ui_font_roboto,0xffffff));
+                lv_obj_add_event_cb(b,cards_action,LV_EVENT_CLICKED,(void *)(intptr_t)j);
+            }
+            cards_status=home_label(cards_page,"",0,380,&ui_font_roboto,0x3cffde);
+
+}
+
 
 static uint32_t home_values_tick;
 static bool home_watch_ready;
@@ -681,7 +716,7 @@ static void home_dynamic_tick(void)
         }
         if (nvs_open("doorcam_cards",NVS_READONLY,&nvs)==ESP_OK) {
             size_t len=sizeof(layout);
-            char local[2048];
+            static char local[2048];
             if (nvs_get_str(nvs,"override",local,&len)==ESP_OK) snprintf(layout,sizeof(layout),"%s",local);
             nvs_close(nvs);
         }
@@ -1098,32 +1133,6 @@ void create_screen_door_cam() {
                     case 4: objects.obj7 = button; break;
                 }
             }
-            cards_page=lv_obj_create(parent_obj);
-            lv_obj_set_pos(cards_page,170,25);
-            lv_obj_set_size(cards_page,460,430);
-            lv_obj_set_style_bg_color(cards_page,lv_color_hex(0x172234),0);
-            lv_obj_set_style_pad_all(cards_page,12,0);
-            lv_obj_set_scrollable(cards_page,false);
-            lv_obj_set_hidden(cards_page,true);
-            lv_obj_t *cb=lv_button_create(cards_page);
-            lv_obj_set_size(cb,90,40);
-            lv_obj_add_event_cb(cb,cards_back,LV_EVENT_CLICKED,NULL);
-            lv_obj_center(home_label(cb,"Назад",0,0,&ui_font_roboto,0xffffff));
-            home_label(cards_page,"Карточки",130,8,&ui_font_roboto,0x3cffde);
-            cards_list=lv_obj_create(cards_page);
-            lv_obj_set_pos(cards_list,0,50);
-            lv_obj_set_size(cards_list,430,220);
-            lv_obj_set_style_bg_opa(cards_list,LV_OPA_TRANSP,0);
-            lv_obj_set_style_pad_all(cards_list,4,0);
-            const char *actions[]={"Вверх","Вниз","Удалить","Сохранить","Из HA"};
-            for (int j=0;j<5;j++) {
-                lv_obj_t *b=lv_button_create(cards_page);
-                lv_obj_set_pos(b,j<3?j*142:(j-3)*212,j<3?278:330);
-                lv_obj_set_size(b,j<3?134:204,44);
-                lv_obj_center(home_label(b,actions[j],0,0,&ui_font_roboto,0xffffff));
-                lv_obj_add_event_cb(b,cards_action,LV_EVENT_CLICKED,(void *)(intptr_t)j);
-            }
-            cards_status=home_label(cards_page,"",0,380,&ui_font_roboto,0x3cffde);
             settings_screen_page = lv_obj_create(parent_obj);
             lv_obj_set_pos(settings_screen_page, 170, 25);
             lv_obj_set_size(settings_screen_page, 460, 430);
