@@ -422,6 +422,13 @@ static void home_dynamic_rebuild(const char *json)
     cJSON *cards = cJSON_GetObjectItemCaseSensitive(root, "cards");
     if (cJSON_IsArray(cards)) {
         int column = 0, y = 0;
+        int climate_y = 0, weather_y = 0;
+        bool split = false;
+        cJSON *probe = NULL;
+        cJSON_ArrayForEach(probe, cards) {
+            cJSON *id = cJSON_GetObjectItemCaseSensitive(probe, "entity_id");
+            if (cJSON_IsString(id) && !strncmp(id->valuestring,"weather.",8)) split = true;
+        }
         cJSON *card = NULL;
         cJSON_ArrayForEach(card, cards) {
             if (home_dynamic_count >= HOME_DYNAMIC_MAX) break;
@@ -433,8 +440,16 @@ static void home_dynamic_rebuild(const char *json)
             bool has_secondary = cJSON_IsString(secondary) && secondary->valuestring[0];
             bool wide = cJSON_IsString(size) && !strcmp(size->valuestring, "wide");
             if (wide && column) { column = 0; y += 132; }
+            bool weather_card = !strncmp(entity->valuestring,"weather.",8);
             int x = column ? 394 : 0;
-            lv_obj_t *panel = home_card(home_dynamic_area, x, y, wide ? 776 : 382, 128);
+            int card_y = y;
+            if (split) {
+                wide = false;
+                x = weather_card ? 394 : 0;
+                card_y = weather_card ? weather_y : climate_y;
+                if (weather_card) weather_y += 132; else climate_y += 132;
+            }
+            lv_obj_t *panel = home_card(home_dynamic_area, x, card_y, wide ? 776 : 382, 128);
             lv_obj_t *heading = home_label(panel, title->valuestring, 12, 12, &ui_font_roboto, 0xb9cbe0);
             lv_obj_set_width(heading, wide ? 744 : 350);
             lv_label_set_long_mode(heading, LV_LABEL_LONG_DOT);
@@ -487,12 +502,35 @@ static void home_dynamic_tick(void)
         if (home_panel_snapshot.panel_loaded) {
             cJSON *root=cJSON_CreateObject();
             cJSON *cards=cJSON_AddArrayToObject(root,"cards");
+            /* Pair temperature and humidity only when their displayed device names match. */
             for (unsigned i=0;cards && i<home_panel_snapshot.panel_count;i++) {
                 dashboard_ha_entity_t *e=&home_panel_snapshot.panel_cards[i];
+                const char *temp=" Температура", *hum=" Влажность";
+                size_t n=strlen(e->title), tn=strlen(temp), hn=strlen(hum);
+                bool is_temp=n>tn && !strcmp(e->title+n-tn,temp);
+                bool is_hum=n>hn && !strcmp(e->title+n-hn,hum);
+                dashboard_ha_entity_t *pair=NULL;
+                if (is_temp || is_hum) {
+                    size_t prefix=n-(is_temp?tn:hn);
+                    const char *suffix=is_temp?hum:temp;
+                    for (unsigned k=0;k<home_panel_snapshot.panel_count;k++) {
+                        dashboard_ha_entity_t *p=&home_panel_snapshot.panel_cards[k];
+                        if (k!=i && strlen(p->title)==prefix+strlen(suffix) &&
+                            !strncmp(p->title,e->title,prefix) && !strcmp(p->title+prefix,suffix)) {
+                            pair=p; break;
+                        }
+                    }
+                    if (is_hum && pair) continue;
+                }
                 cJSON *card=cJSON_CreateObject();
                 if (!card) break;
                 cJSON_AddItemToArray(cards,card);
-                cJSON_AddStringToObject(card,"title",e->title);
+                if (is_temp && pair) {
+                    char title[sizeof(e->title)];
+                    snprintf(title,sizeof(title),"%.*s",(int)(n-tn),e->title);
+                    cJSON_AddStringToObject(card,"title",title);
+                    cJSON_AddStringToObject(card,"entity_id_2",pair->entity_id);
+                } else cJSON_AddStringToObject(card,"title",e->title);
                 cJSON_AddStringToObject(card,"entity_id",e->entity_id);
             }
             char *json=cJSON_PrintUnformatted(root);
@@ -544,6 +582,11 @@ static void home_dynamic_tick(void)
                 const lv_font_t *font = numeric ? HOME_VALUE_FONT : &ui_font_roboto;
                 if (lv_obj_get_style_text_font(home_dynamic_values[i][j], 0) != font)
                     lv_obj_set_style_text_font(home_dynamic_values[i][j], font, 0);
+            }
+            char humidity[96];
+            if (j == 1 && strstr(home_dynamic_entity_ids[i][j], "humidity")) {
+                snprintf(humidity,sizeof(humidity),"Влажность: %s",display);
+                display=humidity;
             }
             if (strcmp(lv_label_get_text(home_dynamic_values[i][j]), display))
                 lv_label_set_text(home_dynamic_values[i][j], display);
