@@ -369,6 +369,9 @@ extern bool dashboard_ha_daily_get(unsigned i, char *out, unsigned cap, char *co
 
 static void weather_dot(lv_obj_t *p, int x, int y, int w, int h, uint32_t color)
 {
+    if (lv_obj_get_width(p) <= 32) {
+        x=x*32/72; y=y*32/72; w=(w*32+71)/72; h=(h*32+71)/72;
+    }
     lv_obj_t *o = lv_obj_create(p);
     lv_obj_set_pos(o,x,y);
     lv_obj_set_size(o,w,h);
@@ -408,12 +411,12 @@ static void weather_icon_update(lv_obj_t *p, const char *state)
         weather_dot(p,36,21,26,26,0xcbd5e1);
     }
     for (int i=0;i<3 && (rain || snow);++i) {
-        if (snow) home_label(p,"*",13+i*19,49,&ui_font_roboto,0x93c5fd);
+        if (snow) weather_dot(p,13+i*19,49,7,7,0x93c5fd);
         else weather_dot(p,16+i*18,51,4,11,0x60a5fa);
     }
-    if (lightning) home_label(p,"!",31,45,&ui_font_roboto,0xfbbf24);
+    if (lightning) weather_dot(p,31,45,6,15,0xfbbf24);
     if (!night && !sun && !cloud && !rain && !snow && !lightning)
-        home_label(p,"?",25,20,&ui_font_roboto,0x94a3b8);
+        home_label(p,"?",lv_obj_get_width(p)<=32?9:25,lv_obj_get_width(p)<=32?4:20,&ui_font_roboto,0x94a3b8);
 }
 
 static void home_dynamic_rebuild(const char *json)
@@ -493,14 +496,14 @@ static void home_dynamic_rebuild(const char *json)
                         lv_obj_set_style_text_align(daily_labels[d],LV_TEXT_ALIGN_CENTER,0);
                         daily_icons[d]=lv_obj_create(forecast);
                         lv_obj_set_pos(daily_icons[d],d*53+13,44);
-                        lv_obj_set_size(daily_icons[d],72,72);
+                        lv_obj_set_size(daily_icons[d],32,32);
                         lv_obj_set_style_bg_opa(daily_icons[d],LV_OPA_TRANSP,0);
                         lv_obj_set_style_border_width(daily_icons[d],0,0);
                         lv_obj_set_style_pad_all(daily_icons[d],0,0);
                         lv_obj_set_scrollable(daily_icons[d],false);
-                        lv_obj_set_style_transform_pivot_x(daily_icons[d],0,0);
-                        lv_obj_set_style_transform_pivot_y(daily_icons[d],0,0);
-                        lv_obj_set_style_transform_scale(daily_icons[d],112,0);
+
+
+
                     }
                     weather_y=264;
                 }
@@ -863,9 +866,9 @@ void create_screen_door_cam() {
         lv_obj_t *parent_obj = obj;
         objects.obj0 = home_card(parent_obj, 12, 4, 278, 52);
         objects.obj2 = home_label(objects.obj0, "Мой дом", 0, 10, &ui_font_roboto, 0x4ade80);
-        lv_obj_set_style_transform_scale(objects.obj2, 404, 0);
-        lv_obj_set_style_transform_pivot_x(objects.obj2, 0, 0);
-        lv_obj_set_style_transform_pivot_y(objects.obj2, 0, 0);
+
+
+
         lv_obj_set_pos(objects.obj2, 12, 6);
         lv_obj_set_width(objects.obj2, LV_SIZE_CONTENT);
         lv_obj_set_style_text_align(objects.obj2, LV_TEXT_ALIGN_LEFT, 0);
@@ -1319,7 +1322,7 @@ void tick_screen_door_cam() {
         lv_obj_set_style_radius(idle_overlay, 0, 0);
         idle_time = home_label(idle_overlay, "--:--", 0, 0, HOME_CLOCK_FONT, 0xb9dfd5);
         lv_obj_align(idle_time, LV_ALIGN_CENTER, 0, -100);
-        lv_obj_set_style_transform_scale(idle_time, 512, 0);
+
         idle_date = home_label(idle_overlay, "", 0, 0, &ui_font_roboto, 0xb9cbe0);
         lv_obj_align(idle_date, LV_ALIGN_CENTER, 0, -15);
         idle_climate = home_label(idle_overlay, "", 0, 0, &ui_font_roboto, 0xb9cbe0);
