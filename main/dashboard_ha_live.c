@@ -365,9 +365,17 @@ static void process_message(char *message)
                 cJSON *l=cJSON_GetObjectItemCaseSensitive(d,"templow");
                 cJSON *c=cJSON_GetObjectItemCaseSensitive(d,"condition");
                 if (!cJSON_IsNumber(h)) continue;
-                char date[6]="--";
-                if (cJSON_IsString(dt) && strlen(dt->valuestring)>=10)
-                    snprintf(date,sizeof(date),"%.2s.%.2s",dt->valuestring+8,dt->valuestring+5);
+                const char *date="--";
+                if (cJSON_IsString(dt)) {
+                    int y,m,day;
+                    if (sscanf(dt->valuestring,"%4d-%2d-%2d",&y,&m,&day)==3 &&
+                        y>=1900 && m>=1 && m<=12 && day>=1 && day<=31) {
+                        static const int offsets[]={0,3,2,5,0,3,5,1,4,6,2,4};
+                        static const char *week[]={"Вс","Пн","Вт","Ср","Чт","Пт","Сб"};
+                        if (m<3) y--;
+                        date=week[(y+y/4-y/100+y/400+offsets[m-1]+day)%7];
+                    }
+                }
                 if (cJSON_IsNumber(l)) snprintf(s_daily[i],sizeof(s_daily[i]),"%s\n%.0f°\n%.0f°",date,h->valuedouble,l->valuedouble);
                 else snprintf(s_daily[i],sizeof(s_daily[i]),"%s\n%.0f°\n--",date,h->valuedouble);
                 if (cJSON_IsString(c)) snprintf(s_daily_condition[i],sizeof(s_daily_condition[i]),"%s",c->valuestring);
