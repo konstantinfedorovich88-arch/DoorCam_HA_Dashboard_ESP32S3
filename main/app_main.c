@@ -66,6 +66,22 @@ static void dashboard_lvgl_task(void *arg)
     }
 
     lv_init();
+    /* Extend the LVGL object heap with PSRAM; keep RGB draw buffers internal. */
+    const size_t pool_bytes = 512 * 1024;
+    void *pool = heap_caps_malloc(pool_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (pool) {
+        if (lv_mem_add_pool(pool, pool_bytes)) {
+            ESP_LOGI(TAG, "LVGL PSRAM pool added: %u bytes", (unsigned)pool_bytes);
+        } else {
+            heap_caps_free(pool);
+            ESP_LOGE(TAG, "LVGL PSRAM pool registration failed");
+        }
+    } else {
+        ESP_LOGE(TAG, "LVGL PSRAM pool allocation failed");
+    }
+    lv_mem_monitor_t mem;
+    lv_mem_monitor(&mem);
+    ESP_LOGI(TAG, "LVGL heap: free=%u largest=%u", (unsigned)mem.free_size, (unsigned)mem.free_biggest_size);
     lv_tick_set_cb(lv_tick_ms);
     lv_display_t *display = lv_display_create(DISPLAY_W, DISPLAY_H);
     if (!display) {
