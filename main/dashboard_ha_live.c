@@ -73,6 +73,18 @@ static void ha_tx_task(void *arg)
 static bool s_person_detected;
 static char s_weather[64];
 static char s_forecast[64];
+static char s_daily[7][64];
+static char s_daily_condition[7][32];
+bool dashboard_ha_daily_get(unsigned i, char *out, unsigned cap, char *condition, unsigned condition_cap)
+{
+    if (!s_mutex || i >= 7 || !out || !cap || !condition || !condition_cap) return false;
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    snprintf(out,cap,"%s",s_daily[i]);
+    snprintf(condition,condition_cap,"%s",s_daily_condition[i]);
+    bool ok=s_snapshot.connected && s_daily[i][0];
+    xSemaphoreGive(s_mutex);
+    return ok;
+}
 
 static dashboard_ha_entity_t s_watched[DASH_HA_WATCH_MAX];
 static unsigned s_watched_count;
@@ -344,6 +356,22 @@ static void process_message(char *message)
             cJSON *lo=cJSON_GetObjectItemCaseSensitive(day,"templow");
             xSemaphoreTake(s_mutex,portMAX_DELAY);
             s_forecast[0]=0;
+            memset(s_daily,0,sizeof(s_daily));
+            memset(s_daily_condition,0,sizeof(s_daily_condition));
+            for (unsigned i=0;i<7;i++) {
+                cJSON *d=cJSON_GetArrayItem(days,i);
+                cJSON *dt=cJSON_GetObjectItemCaseSensitive(d,"datetime");
+                cJSON *h=cJSON_GetObjectItemCaseSensitive(d,"temperature");
+                cJSON *l=cJSON_GetObjectItemCaseSensitive(d,"templow");
+                cJSON *c=cJSON_GetObjectItemCaseSensitive(d,"condition");
+                if (!cJSON_IsNumber(h)) continue;
+                char date[6]="--";
+                if (cJSON_IsString(dt) && strlen(dt->valuestring)>=10)
+                    snprintf(date,sizeof(date),"%.2s.%.2s",dt->valuestring+8,dt->valuestring+5);
+                if (cJSON_IsNumber(l)) snprintf(s_daily[i],sizeof(s_daily[i]),"%s\n%.0f°\n%.0f°",date,h->valuedouble,l->valuedouble);
+                else snprintf(s_daily[i],sizeof(s_daily[i]),"%s\n%.0f°\n--",date,h->valuedouble);
+                if (cJSON_IsString(c)) snprintf(s_daily_condition[i],sizeof(s_daily_condition[i]),"%s",c->valuestring);
+            }
             if (cJSON_IsNumber(hi) && cJSON_IsNumber(lo)) snprintf(s_forecast,sizeof(s_forecast),"%.0f / %.0f",hi->valuedouble,lo->valuedouble);
             xSemaphoreGive(s_mutex);
         }
