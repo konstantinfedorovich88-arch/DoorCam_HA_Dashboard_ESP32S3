@@ -66,19 +66,24 @@ static void dashboard_lvgl_task(void *arg)
     }
 
     lv_init();
-    /* Extend the LVGL object heap with PSRAM; keep RGB draw buffers internal. */
-    const size_t pool_bytes = 512 * 1024;
-    void *pool = heap_caps_malloc(pool_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (pool) {
-        if (lv_mem_add_pool(pool, pool_bytes)) {
-            ESP_LOGI(TAG, "LVGL PSRAM pool added: %u bytes", (unsigned)pool_bytes);
-        } else {
-            heap_caps_free(pool);
-            ESP_LOGE(TAG, "LVGL PSRAM pool registration failed");
+    /* Use aligned PSRAM pools below the TLSF single-block limit.
+     * Keep successful pools allocated for the lifetime of LVGL. */
+    size_t added = 0;
+    for (unsigned i = 0; i < 8; ++i) {
+        const size_t pool_bytes = 64 * 1024;
+        void *pool = heap_caps_aligned_alloc(16, pool_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!pool) {
+            ESP_LOGE(TAG, "LVGL PSRAM allocation failed at pool %u", i);
+            break;
         }
-    } else {
-        ESP_LOGE(TAG, "LVGL PSRAM pool allocation failed");
+        if (!lv_mem_add_pool(pool, pool_bytes)) {
+            heap_caps_free(pool);
+            ESP_LOGE(TAG, "LVGL PSRAM registration failed at pool %u", i);
+            break;
+        }
+        added += pool_bytes;
     }
+    ESP_LOGI(TAG, "LVGL PSRAM pools added: %u bytes", (unsigned)added);
     lv_mem_monitor_t mem;
     lv_mem_monitor(&mem);
     ESP_LOGI(TAG, "LVGL heap: free=%u largest=%u", (unsigned)mem.free_size, (unsigned)mem.free_biggest_size);
