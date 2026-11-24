@@ -359,45 +359,35 @@ static char home_layout_last[2048];
 static lv_obj_t *cards_page, *cards_list, *cards_status;
 static cJSON *cards_edit;
 static int cards_selected;
-static void cards_select(lv_event_t *e);
+static char cards_text[1024];
 static void cards_refresh(void)
 {
-    lv_obj_clean(cards_list);
     cJSON *a=cJSON_GetObjectItemCaseSensitive(cards_edit,"cards");
     int n=cJSON_GetArraySize(a);
     if (cards_selected>=n) cards_selected=n-1;
     if (cards_selected<0 && n) cards_selected=0;
-    for (int i=0;i<n;i++) {
-        cJSON *c=cJSON_GetArrayItem(a,i);
-        cJSON *t=cJSON_GetObjectItemCaseSensitive(c,"title");
-        lv_obj_t *b=lv_button_create(cards_list);
-        lv_obj_set_size(b,390,42);
-        lv_obj_set_pos(b,0,i*48);
-        lv_obj_set_style_bg_color(b,lv_color_hex(i==cards_selected?0x386879:0x24354b),0);
-        lv_obj_t *l=lv_label_create(b);
-        lv_obj_set_style_text_font(l,&ui_font_roboto,0);
-        lv_label_set_text(l,cJSON_IsString(t)?t->valuestring:"--");
-        lv_obj_set_width(l,360);
-        lv_label_set_long_mode(l,LV_LABEL_LONG_DOT);
-        lv_obj_center(l);
-        lv_obj_add_event_cb(b,cards_select,LV_EVENT_CLICKED,(void *)(intptr_t)i);
+    size_t used=0;
+    cards_text[0]=0;
+    for (int i=0;i<n && i<HOME_DYNAMIC_MAX;i++) {
+        cJSON *t=cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(a,i),"title");
+        int w=snprintf(cards_text+used,sizeof(cards_text)-used,"%s %d. %.80s\n",i==cards_selected?">":" ",i+1,cJSON_IsString(t)?t->valuestring:"--");
+        if (w<0 || (size_t)w>=sizeof(cards_text)-used) break;
+        used+=(size_t)w;
     }
+    if (!n) snprintf(cards_text,sizeof(cards_text),"Нет карточек");
+    lv_label_set_text_static(cards_list,cards_text);
 }
 
 static unsigned home_dynamic_count;
 static char home_dynamic_titles[HOME_DYNAMIC_MAX][80];
 static uint32_t home_layout_tick;
-static void cards_select(lv_event_t *e)
-{
-    cards_selected=(int)(intptr_t)lv_event_get_user_data(e);
-    cards_refresh();
-}
 static void cards_action(lv_event_t *e)
 {
     int action=(int)(intptr_t)lv_event_get_user_data(e);
     cJSON *a=cJSON_GetObjectItemCaseSensitive(cards_edit,"cards");
     int n=cJSON_GetArraySize(a);
-    if (action==0 || action==1) {
+    if (action==5) { if (n) cards_selected=(cards_selected+1)%n; }
+    else if (action==0 || action==1) {
         int to=cards_selected+(action==0?-1:1);
         if (cards_selected>=0 && to>=0 && to<n) {
             cJSON *item=cJSON_DetachItemFromArray(a,cards_selected);
@@ -432,6 +422,10 @@ static void cards_create(void);
 static void cards_open(lv_event_t *e)
 {
     (void)e;
+    lv_mem_monitor_t mon;
+    lv_mem_monitor(&mon);
+    printf("CARDS open: LVGL free=%u largest=%u; internal free=%u largest=%u\n",(unsigned)mon.free_size,(unsigned)mon.free_biggest_size,(unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),(unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+    if (mon.free_size<8192 || mon.free_biggest_size<1024) { printf("CARDS: insufficient LVGL memory\n"); return; }
     if (!cards_page) cards_create();
     cJSON_Delete(cards_edit);
     cards_edit=cJSON_Parse(home_layout_last);
@@ -465,16 +459,17 @@ static void cards_create(void)
             lv_obj_add_event_cb(cb,cards_back,LV_EVENT_CLICKED,NULL);
             lv_obj_center(home_label(cb,"Назад",0,0,&ui_font_roboto,0xffffff));
             home_label(cards_page,"Карточки",130,8,&ui_font_roboto,0x3cffde);
-            cards_list=lv_obj_create(cards_page);
+            cards_list=lv_label_create(cards_page);
             lv_obj_set_pos(cards_list,0,50);
-            lv_obj_set_size(cards_list,430,220);
-            lv_obj_set_style_bg_opa(cards_list,LV_OPA_TRANSP,0);
-            lv_obj_set_style_pad_all(cards_list,4,0);
-            const char *actions[]={"Вверх","Вниз","Удалить","Сохранить","Из HA"};
-            for (int j=0;j<5;j++) {
+            lv_obj_set_width(cards_list,420);
+            lv_obj_set_style_text_font(cards_list,&ui_font_roboto,0);
+            lv_obj_set_style_text_color(cards_list,lv_color_hex(0xffffff),0);
+            lv_label_set_text_static(cards_list,cards_text);
+            const char *actions[]={"Вверх","Вниз","Удалить","Сохранить","Из HA","Выбрать"};
+            for (int j=0;j<6;j++) {
                 lv_obj_t *b=lv_button_create(cards_page);
-                lv_obj_set_pos(b,j<3?j*142:(j-3)*212,j<3?278:330);
-                lv_obj_set_size(b,j<3?134:204,44);
+                lv_obj_set_pos(b,(j%3)*142, j<3?278:330);
+                lv_obj_set_size(b,134,44);
                 lv_obj_center(home_label(b,actions[j],0,0,&ui_font_roboto,0xffffff));
                 lv_obj_add_event_cb(b,cards_action,LV_EVENT_CLICKED,(void *)(intptr_t)j);
             }
