@@ -363,7 +363,7 @@ static bool home_watch_ready;
 
 static lv_obj_t *weather_icons[HOME_DYNAMIC_MAX];
 static char weather_last[HOME_DYNAMIC_MAX][64];
-static lv_obj_t *daily_labels[7], *daily_icons[7];
+static lv_obj_t *daily_labels[7], *daily_icons[7], *daily_days[7], *daily_lows[7];
 static char daily_last[7][32];
 extern bool dashboard_ha_daily_get(unsigned i, char *out, unsigned cap, char *condition, unsigned condition_cap);
 
@@ -423,6 +423,8 @@ static void home_dynamic_rebuild(const char *json)
     memset(home_dynamic_values, 0, sizeof(home_dynamic_values));
     memset(weather_icons, 0, sizeof(weather_icons));
     memset(daily_labels,0,sizeof(daily_labels));
+    memset(daily_days,0,sizeof(daily_days));
+    memset(daily_lows,0,sizeof(daily_lows));
     memset(daily_icons,0,sizeof(daily_icons));
     memset(daily_last,0,sizeof(daily_last));
     memset(weather_last, 0, sizeof(weather_last));
@@ -480,11 +482,17 @@ static void home_dynamic_rebuild(const char *json)
                     lv_obj_t *forecast=home_card(home_dynamic_area,394,132,382,128);
                     home_label(forecast,"Прогноз на 7 дней",12,0,&ui_font_roboto,0xb9cbe0);
                     for (unsigned d=0;d<7;d++) {
-                        daily_labels[d]=home_label(forecast,"--",d*53+3,43,&ui_font_roboto,0xf1f5f9);
+                        daily_days[d]=home_label(forecast,"--",d*53+3,23,&ui_font_roboto,0xb9cbe0);
+                        daily_lows[d]=home_label(forecast,"--",d*53+3,100,&ui_font_roboto,0x94a3b8);
+                        lv_obj_set_width(daily_days[d],53);
+                        lv_obj_set_width(daily_lows[d],53);
+                        lv_obj_set_style_text_align(daily_days[d],LV_TEXT_ALIGN_CENTER,0);
+                        lv_obj_set_style_text_align(daily_lows[d],LV_TEXT_ALIGN_CENTER,0);
+                        daily_labels[d]=home_label(forecast,"--",d*53+3,78,&ui_font_roboto,0xf1f5f9);
                         lv_obj_set_width(daily_labels[d],53);
                         lv_obj_set_style_text_align(daily_labels[d],LV_TEXT_ALIGN_CENTER,0);
                         daily_icons[d]=lv_obj_create(forecast);
-                        lv_obj_set_pos(daily_icons[d],d*53+3,20);
+                        lv_obj_set_pos(daily_icons[d],d*53+13,44);
                         lv_obj_set_size(daily_icons[d],72,72);
                         lv_obj_set_style_bg_opa(daily_icons[d],LV_OPA_TRANSP,0);
                         lv_obj_set_style_border_width(daily_icons[d],0,0);
@@ -492,7 +500,7 @@ static void home_dynamic_rebuild(const char *json)
                         lv_obj_set_scrollable(daily_icons[d],false);
                         lv_obj_set_style_transform_pivot_x(daily_icons[d],0,0);
                         lv_obj_set_style_transform_pivot_y(daily_icons[d],0,0);
-                        lv_obj_set_style_transform_scale(daily_icons[d],90,0);
+                        lv_obj_set_style_transform_scale(daily_icons[d],112,0);
                     }
                     weather_y=264;
                 }
@@ -601,7 +609,14 @@ static void home_dynamic_tick(void)
             snprintf(value,sizeof(value),"--");
             snprintf(condition,sizeof(condition),"unknown");
         }
-        if (strcmp(lv_label_get_text(daily_labels[d]),value)) lv_label_set_text(daily_labels[d],value);
+        char *high=strchr(value,'\n');
+        char *low=NULL;
+        if (high) { *high++=0; low=strchr(high,'\n'); if (low) *low++=0; }
+        if (!high) high="--";
+        if (!low) low="--";
+        if (strcmp(lv_label_get_text(daily_days[d]),value)) lv_label_set_text(daily_days[d],value);
+        if (strcmp(lv_label_get_text(daily_labels[d]),high)) lv_label_set_text(daily_labels[d],high);
+        if (strcmp(lv_label_get_text(daily_lows[d]),low)) lv_label_set_text(daily_lows[d],low);
         if (strcmp(daily_last[d],condition)) {
             snprintf(daily_last[d],sizeof(daily_last[d]),"%s",condition);
             weather_icon_update(daily_icons[d],condition);
