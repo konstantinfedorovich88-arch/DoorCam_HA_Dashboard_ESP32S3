@@ -383,6 +383,7 @@ static void cards_refresh(void)
             cJSON_IsString(cJSON_GetObjectItemCaseSensitive(item,"entity_id_2"))?"Температура • Влажность":"Датчик");
     }
 }
+static void cards_picker_open(void);
 static void cards_action(lv_event_t *e)
 {
     int code=(int)(intptr_t)lv_event_get_user_data(e);
@@ -402,30 +403,7 @@ static void cards_action(lv_event_t *e)
         lv_label_set_text(cards_status,"Есть изменения");
         return;
     }
-    if (code==102) {
-        cJSON *source=cJSON_Parse(cards_ha_layout);
-        cJSON *src=cJSON_GetObjectItemCaseSensitive(source,"cards");
-        bool added=false;
-        for (int k=0;k<cJSON_GetArraySize(src)&&n<HOME_DYNAMIC_MAX;k++) {
-            cJSON *item=cJSON_GetArrayItem(src,k);
-            cJSON *id=cJSON_GetObjectItemCaseSensitive(item,"entity_id");
-            if (!cJSON_IsString(id)) continue;
-            bool exists=false;
-            for (int j=0;j<n;j++) {
-                cJSON *other=cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(a,j),"entity_id");
-                if (cJSON_IsString(other)&&!strcmp(other->valuestring,id->valuestring)) exists=true;
-            }
-            if (!exists) {
-                cJSON *copy=cJSON_Duplicate(item,true);
-                if (copy && cJSON_AddItemToArray(a,copy)) { added=true; break; }
-                cJSON_Delete(copy);
-            }
-        }
-        cJSON_Delete(source);
-        cards_refresh();
-        lv_label_set_text(cards_status,added?"Карточка добавлена":"Нет новых карточек HA");
-        return;
-    }
+    if (code==102) { cards_picker_open(); return; }
     nvs_handle_t h;
     esp_err_t err=nvs_open("doorcam_cards",NVS_READWRITE,&h);
     if (err==ESP_OK) {
@@ -449,6 +427,7 @@ static void cards_action(lv_event_t *e)
     }
     lv_label_set_text(cards_status,err==ESP_OK?"Сохранено":"Ошибка сохранения");
 }
+static lv_obj_t *picker_page;
 static void cards_back(lv_event_t *e)
 {
     (void)e;
@@ -456,6 +435,7 @@ static void cards_back(lv_event_t *e)
     lv_obj_set_hidden(cards_page,true);
     lv_obj_delete_async(cards_page);
     cards_page=cards_list=cards_status=NULL;
+    picker_page=NULL;
     cJSON_Delete(cards_edit);
     cards_edit=NULL;
 }
@@ -472,6 +452,89 @@ static lv_obj_t *cards_button(lv_obj_t *p,const char *name,int x,int y,int w,int
     lv_obj_center(home_label(b,name,0,0,&ui_font_roboto,0xf1f5f9));
     lv_obj_add_event_cb(b,cb,LV_EVENT_CLICKED,(void *)(intptr_t)code);
     return b;
+}
+extern unsigned dashboard_ha_catalog_get(unsigned offset, dashboard_ha_entity_t *out, unsigned cap);
+static lv_obj_t *picker_rows[6], *picker_names[6], *picker_ids[6], *picker_status;
+static dashboard_ha_entity_t picker_items[6];
+static unsigned picker_offset, picker_count;
+static void picker_refresh(void)
+{
+    picker_count=dashboard_ha_catalog_get(picker_offset,picker_items,6);
+    for (unsigned i=0;i<6;i++) {
+        lv_obj_set_hidden(picker_rows[i],i>=picker_count);
+        if (i>=picker_count) continue;
+        lv_label_set_text(picker_names[i],picker_items[i].title);
+        lv_label_set_text(picker_ids[i],picker_items[i].entity_id);
+    }
+    lv_label_set_text(picker_status,picker_count?"Выберите сущность":"Нет доступных сущностей HA");
+}
+static void picker_action(lv_event_t *e)
+{
+    int code=(int)(intptr_t)lv_event_get_user_data(e);
+    if (code==10) { lv_obj_set_hidden(picker_page,true); return; }
+    if (code==11) { if (picker_offset>=6) picker_offset-=6; picker_refresh(); return; }
+    if (code==12) {
+        if (picker_count==6) {
+            picker_offset+=6; picker_refresh();
+            if (!picker_count) { picker_offset-=6; picker_refresh(); }
+        }
+        return;
+    }
+    if (code<0 || (unsigned)code>=picker_count) return;
+    cJSON *a=cJSON_GetObjectItemCaseSensitive(cards_edit,"cards");
+    int n=cJSON_GetArraySize(a);
+    if (n>=HOME_DYNAMIC_MAX) { lv_label_set_text(picker_status,"Максимум 8 карточек"); return; }
+    const char *id=picker_items[code].entity_id;
+    for (int i=0;i<n;i++) {
+        cJSON *item=cJSON_GetArrayItem(a,i);
+        cJSON *primary=cJSON_GetObjectItemCaseSensitive(item,"entity_id");
+        cJSON *secondary=cJSON_GetObjectItemCaseSensitive(item,"entity_id_2");
+        if ((cJSON_IsString(primary)&&!strcmp(primary->valuestring,id)) ||
+            (cJSON_IsString(secondary)&&!strcmp(secondary->valuestring,id))) {
+            lv_label_set_text(picker_status,"Уже добавлено"); return;
+        }
+    }
+    cJSON *item=cJSON_CreateObject();
+    if (!item || !cJSON_AddStringToObject(item,"title",picker_items[code].title) ||
+        !cJSON_AddStringToObject(item,"entity_id",id) || !cJSON_AddItemToArray(a,item)) {
+        cJSON_Delete(item); lv_label_set_text(picker_status,"Ошибка памяти"); return;
+    }
+    cards_refresh();
+    lv_label_set_text(cards_status,"Карточка добавлена. Сохраните");
+    lv_obj_set_hidden(picker_page,true);
+}
+static void cards_picker_open(void)
+{
+    if (!picker_page) {
+        picker_page=lv_obj_create(cards_page);
+        lv_obj_set_pos(picker_page,0,0);
+        lv_obj_set_size(picker_page,800,480);
+        lv_obj_set_style_bg_color(picker_page,lv_color_hex(0x101827),0);
+        lv_obj_set_style_bg_opa(picker_page,LV_OPA_COVER,0);
+        lv_obj_set_style_pad_all(picker_page,0,0);
+        lv_obj_set_style_border_width(picker_page,0,0);
+        lv_obj_set_style_radius(picker_page,0,0);
+        lv_obj_set_scrollable(picker_page,false);
+        cards_button(picker_page,"Назад",24,10,100,44,picker_action,10);
+        home_label(picker_page,"Сущности Home Assistant",150,20,&ui_font_roboto,0xf1f5f9);
+        for (int i=0;i<6;i++) {
+            lv_obj_t *row=picker_rows[i]=cards_button(picker_page,"",24,65+i*55,752,50,picker_action,i);
+            lv_obj_set_style_pad_all(row,0,0);
+            picker_names[i]=home_label(row,"",12,2,&ui_font_roboto,0xf1f5f9);
+            picker_ids[i]=home_label(row,"",12,25,&ui_font_roboto,0x7fc8f8);
+            lv_obj_set_width(picker_names[i],720);
+            lv_obj_set_width(picker_ids[i],720);
+            lv_label_set_long_mode(picker_names[i],LV_LABEL_LONG_DOT);
+            lv_label_set_long_mode(picker_ids[i],LV_LABEL_LONG_DOT);
+        }
+        cards_button(picker_page,"Предыдущие",24,405,220,48,picker_action,11);
+        cards_button(picker_page,"Следующие",556,405,220,48,picker_action,12);
+        picker_status=home_label(picker_page,"",24,455,&ui_font_roboto,0x7fc8f8);
+    }
+    picker_offset=0;
+    picker_refresh();
+    lv_obj_set_hidden(picker_page,false);
+    lv_obj_move_foreground(picker_page);
 }
 static void cards_create(void)
 {
