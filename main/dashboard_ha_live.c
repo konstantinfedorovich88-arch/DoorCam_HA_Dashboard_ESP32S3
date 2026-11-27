@@ -2,6 +2,7 @@
 #include "esp_websocket_client.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_heap_caps.h"
 #include "nvs.h"
 #include "cJSON.h"
 #include "freertos/FreeRTOS.h"
@@ -17,6 +18,19 @@ static const char *TAG = "DASH_HA_LIVE";
 static esp_websocket_client_handle_t s_ws;
 static SemaphoreHandle_t s_mutex;
 static dashboard_ha_snapshot_t s_snapshot;
+#define HA_CATALOG_MAX 256
+static dashboard_ha_entity_t *s_catalog;
+static unsigned s_catalog_count;
+unsigned dashboard_ha_catalog_get(unsigned offset, dashboard_ha_entity_t *out, unsigned cap)
+{
+    if (!s_mutex || !out) return 0;
+    xSemaphoreTake(s_mutex,portMAX_DELAY);
+    unsigned n=0;
+    if (s_snapshot.connected && s_catalog)
+        while (n<cap && offset+n<s_catalog_count) { out[n]=s_catalog[offset+n]; n++; }
+    xSemaphoreGive(s_mutex);
+    return n;
+}
 static char *s_message;
 static int s_received, s_expected;
 static bool s_started;
@@ -173,6 +187,17 @@ static void save_entity(const char *id, const char *state, const char *friendly,
             snprintf(card->state,sizeof(card->state),"%s%s",state,unit?unit:"");
             if (friendly && (!card->title[0] || !strcmp(card->title,id)))
                 snprintf(card->title,sizeof(card->title),"%s",friendly);
+        }
+    }
+    if (!s_catalog) s_catalog=heap_caps_calloc(HA_CATALOG_MAX,sizeof(*s_catalog),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    if (s_catalog && strlen(id)<sizeof(s_catalog[0].entity_id)) {
+        unsigned k=0;
+        while (k<s_catalog_count && strcmp(s_catalog[k].entity_id,id)) k++;
+        if (k<HA_CATALOG_MAX) {
+            if (k==s_catalog_count) s_catalog_count++;
+            snprintf(s_catalog[k].entity_id,sizeof(s_catalog[k].entity_id),"%s",id);
+            snprintf(s_catalog[k].title,sizeof(s_catalog[k].title),"%s",friendly?friendly:id);
+            snprintf(s_catalog[k].state,sizeof(s_catalog[k].state),"%s%s",state,unit?unit:"");
         }
     }
     unsigned index=0;
