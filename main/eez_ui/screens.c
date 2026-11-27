@@ -357,126 +357,180 @@ static char home_dynamic_ids[DASH_HA_WATCH_MAX][80];
 static char home_dynamic_entity_ids[HOME_DYNAMIC_MAX][2][80];
 static char home_layout_last[2048];
 static lv_obj_t *cards_page, *cards_list, *cards_status;
+static lv_obj_t *cards_rows[HOME_DYNAMIC_MAX], *cards_names[HOME_DYNAMIC_MAX], *cards_details[HOME_DYNAMIC_MAX];
 static cJSON *cards_edit;
-static int cards_selected;
-static char cards_text[1024];
+static unsigned home_dynamic_count;
+static char home_dynamic_titles[HOME_DYNAMIC_MAX][80];
+static uint32_t home_layout_tick;
+static char cards_ha_layout[2048];
+
 static void cards_refresh(void)
 {
     cJSON *a=cJSON_GetObjectItemCaseSensitive(cards_edit,"cards");
     int n=cJSON_GetArraySize(a);
-    if (cards_selected>=n) cards_selected=n-1;
-    if (cards_selected<0 && n) cards_selected=0;
-    size_t used=0;
-    cards_text[0]=0;
-    for (int i=0;i<n && i<HOME_DYNAMIC_MAX;i++) {
-        cJSON *t=cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(a,i),"title");
-        int w=snprintf(cards_text+used,sizeof(cards_text)-used,"%s %d. %.80s\n",i==cards_selected?">":" ",i+1,cJSON_IsString(t)?t->valuestring:"--");
-        if (w<0 || (size_t)w>=sizeof(cards_text)-used) break;
-        used+=(size_t)w;
+    for (int i=0;i<HOME_DYNAMIC_MAX;i++) {
+        lv_obj_set_hidden(cards_rows[i],i>=n);
+        if (i>=n) continue;
+        cJSON *item=cJSON_GetArrayItem(a,i);
+        cJSON *t=cJSON_GetObjectItemCaseSensitive(item,"title");
+        cJSON *id=cJSON_GetObjectItemCaseSensitive(item,"entity_id");
+        const char *name=cJSON_IsString(t)?t->valuestring:"--";
+        bool weather=cJSON_IsString(id)&&!strncmp(id->valuestring,"weather.",8);
+        if (!strcmp(name,"0xa4c13884c062e7b9")) name="Климат";
+        if (weather) name="Погода Gismeteo";
+        lv_label_set_text(cards_names[i],name);
+        lv_label_set_text(cards_details[i],weather?"Погода • Прогноз на 7 дней":
+            cJSON_IsString(cJSON_GetObjectItemCaseSensitive(item,"entity_id_2"))?"Температура • Влажность":"Датчик");
     }
-    if (!n) snprintf(cards_text,sizeof(cards_text),"Нет карточек");
-    lv_label_set_text_static(cards_list,cards_text);
 }
-
-static unsigned home_dynamic_count;
-static char home_dynamic_titles[HOME_DYNAMIC_MAX][80];
-static uint32_t home_layout_tick;
 static void cards_action(lv_event_t *e)
 {
-    int action=(int)(intptr_t)lv_event_get_user_data(e);
+    int code=(int)(intptr_t)lv_event_get_user_data(e);
     cJSON *a=cJSON_GetObjectItemCaseSensitive(cards_edit,"cards");
     int n=cJSON_GetArraySize(a);
-    if (action==5) { if (n) cards_selected=(cards_selected+1)%n; }
-    else if (action==0 || action==1) {
-        int to=cards_selected+(action==0?-1:1);
-        if (cards_selected>=0 && to>=0 && to<n) {
-            cJSON *item=cJSON_DetachItemFromArray(a,cards_selected);
+    if (code<100) {
+        int i=code/3, action=code%3;
+        if (i>=n) return;
+        if (action==2) cJSON_DeleteItemFromArray(a,i);
+        else {
+            int to=i+(action==0?-1:1);
+            if (to<0 || to>=n) return;
+            cJSON *item=cJSON_DetachItemFromArray(a,i);
             cJSON_InsertItemInArray(a,to,item);
-            cards_selected=to;
         }
-    } else if (action==2 && cards_selected>=0) {
-        cJSON_DeleteItemFromArray(a,cards_selected);
-    } else if (action==3 || action==4) {
-        nvs_handle_t h;
-        esp_err_t err=nvs_open("doorcam_cards",NVS_READWRITE,&h);
-        if (err==ESP_OK) {
-            if (action==4) {
-                err=nvs_erase_key(h,"override");
-                if (err==ESP_ERR_NVS_NOT_FOUND) err=ESP_OK;
-            } else {
-                char *json=cJSON_PrintUnformatted(cards_edit);
-                err=json && strlen(json)<sizeof(home_layout_last)?nvs_set_str(h,"override",json):ESP_ERR_INVALID_SIZE;
-                if (json) cJSON_free(json);
-            }
-            if (err==ESP_OK) err=nvs_commit(h);
-            nvs_close(h);
-        }
-        lv_label_set_text(cards_status,err==ESP_OK?"Сохранено":"Ошибка сохранения");
-        if (err==ESP_OK) home_layout_tick=0;
+        cards_refresh();
+        lv_label_set_text(cards_status,"Есть изменения");
         return;
     }
-    cards_refresh();
-}
-static void cards_back(lv_event_t *e);
-static void cards_create(void);
-static void cards_open(lv_event_t *e)
-{
-    (void)e;
-    lv_mem_monitor_t mon;
-    lv_mem_monitor(&mon);
-    printf("CARDS open: LVGL free=%u largest=%u; internal free=%u largest=%u\n",(unsigned)mon.free_size,(unsigned)mon.free_biggest_size,(unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),(unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
-    if (mon.free_size<8192 || mon.free_biggest_size<1024) { printf("CARDS: insufficient LVGL memory\n"); return; }
-    if (!cards_page) cards_create();
-    cJSON_Delete(cards_edit);
-    cards_edit=cJSON_Parse(home_layout_last);
-    if (!cards_edit) { cards_edit=cJSON_CreateObject(); cJSON_AddArrayToObject(cards_edit,"cards"); }
-    cards_selected=0;
-    cards_refresh();
-    lv_label_set_text(cards_status,"");
-    lv_obj_set_hidden(settings_main,true);
-    lv_obj_set_hidden(cards_page,false);
+    if (code==102) {
+        cJSON *source=cJSON_Parse(cards_ha_layout);
+        cJSON *src=cJSON_GetObjectItemCaseSensitive(source,"cards");
+        bool added=false;
+        for (int k=0;k<cJSON_GetArraySize(src)&&n<HOME_DYNAMIC_MAX;k++) {
+            cJSON *item=cJSON_GetArrayItem(src,k);
+            cJSON *id=cJSON_GetObjectItemCaseSensitive(item,"entity_id");
+            if (!cJSON_IsString(id)) continue;
+            bool exists=false;
+            for (int j=0;j<n;j++) {
+                cJSON *other=cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(a,j),"entity_id");
+                if (cJSON_IsString(other)&&!strcmp(other->valuestring,id->valuestring)) exists=true;
+            }
+            if (!exists) {
+                cJSON *copy=cJSON_Duplicate(item,true);
+                if (copy && cJSON_AddItemToArray(a,copy)) { added=true; break; }
+                cJSON_Delete(copy);
+            }
+        }
+        cJSON_Delete(source);
+        cards_refresh();
+        lv_label_set_text(cards_status,added?"Карточка добавлена":"Нет новых карточек HA");
+        return;
+    }
+    nvs_handle_t h;
+    esp_err_t err=nvs_open("doorcam_cards",NVS_READWRITE,&h);
+    if (err==ESP_OK) {
+        if (code==101) {
+            err=nvs_erase_key(h,"override");
+            if (err==ESP_ERR_NVS_NOT_FOUND) err=ESP_OK;
+        } else {
+            char *json=cJSON_PrintUnformatted(cards_edit);
+            err=json && strlen(json)<sizeof(home_layout_last)?nvs_set_str(h,"override",json):ESP_ERR_INVALID_SIZE;
+            cJSON_free(json);
+        }
+        if (err==ESP_OK) err=nvs_commit(h);
+        nvs_close(h);
+    }
+    if (err==ESP_OK) {
+        home_layout_tick=0;
+        if (code==101) {
+            cJSON *fresh=cJSON_Parse(cards_ha_layout);
+            if (fresh) { cJSON_Delete(cards_edit); cards_edit=fresh; cards_refresh(); }
+        }
+    }
+    lv_label_set_text(cards_status,err==ESP_OK?"Сохранено":"Ошибка сохранения");
 }
 static void cards_back(lv_event_t *e)
 {
     (void)e;
     lv_obj_set_hidden(settings_main,false);
+    lv_obj_set_hidden(cards_page,true);
     lv_obj_delete_async(cards_page);
     cards_page=cards_list=cards_status=NULL;
     cJSON_Delete(cards_edit);
     cards_edit=NULL;
 }
+static lv_obj_t *cards_button(lv_obj_t *p,const char *name,int x,int y,int w,int h,lv_event_cb_t cb,int code)
+{
+    lv_obj_t *b=lv_button_create(p);
+    lv_obj_set_pos(b,x,y);
+    lv_obj_set_size(b,w,h);
+    lv_obj_set_style_bg_color(b,lv_color_hex(0x24354b),0);
+    lv_obj_set_style_bg_opa(b,LV_OPA_COVER,0);
+    lv_obj_set_style_border_width(b,0,0);
+    lv_obj_set_style_shadow_width(b,0,0);
+    lv_obj_set_style_radius(b,12,0);
+    lv_obj_center(home_label(b,name,0,0,&ui_font_roboto,0xf1f5f9));
+    lv_obj_add_event_cb(b,cb,LV_EVENT_CLICKED,(void *)(intptr_t)code);
+    return b;
+}
 static void cards_create(void)
 {
-            cards_page=lv_obj_create(lv_obj_get_parent(settings_main));
-            lv_obj_set_pos(cards_page,170,25);
-            lv_obj_set_size(cards_page,460,430);
-            lv_obj_set_style_bg_color(cards_page,lv_color_hex(0x172234),0);
-            lv_obj_set_style_pad_all(cards_page,12,0);
-            lv_obj_set_scrollable(cards_page,false);
-            lv_obj_set_hidden(cards_page,true);
-            lv_obj_t *cb=lv_button_create(cards_page);
-            lv_obj_set_size(cb,90,40);
-            lv_obj_add_event_cb(cb,cards_back,LV_EVENT_CLICKED,NULL);
-            lv_obj_center(home_label(cb,"Назад",0,0,&ui_font_roboto,0xffffff));
-            home_label(cards_page,"Карточки",130,8,&ui_font_roboto,0x3cffde);
-            cards_list=lv_label_create(cards_page);
-            lv_obj_set_pos(cards_list,0,50);
-            lv_obj_set_width(cards_list,420);
-            lv_obj_set_style_text_font(cards_list,&ui_font_roboto,0);
-            lv_obj_set_style_text_color(cards_list,lv_color_hex(0xffffff),0);
-            lv_label_set_text_static(cards_list,cards_text);
-            const char *actions[]={"Вверх","Вниз","Удалить","Сохранить","Из HA","Выбрать"};
-            for (int j=0;j<6;j++) {
-                lv_obj_t *b=lv_button_create(cards_page);
-                lv_obj_set_pos(b,(j%3)*142, j<3?278:330);
-                lv_obj_set_size(b,134,44);
-                lv_obj_center(home_label(b,actions[j],0,0,&ui_font_roboto,0xffffff));
-                lv_obj_add_event_cb(b,cards_action,LV_EVENT_CLICKED,(void *)(intptr_t)j);
-            }
-            cards_status=home_label(cards_page,"",0,380,&ui_font_roboto,0x3cffde);
-
+    cards_page=lv_obj_create(lv_layer_top());
+    lv_obj_set_pos(cards_page,0,0);
+    lv_obj_set_size(cards_page,800,480);
+    lv_obj_set_style_bg_color(cards_page,lv_color_hex(0x101827),0);
+    lv_obj_set_style_bg_opa(cards_page,LV_OPA_COVER,0);
+    lv_obj_set_style_border_width(cards_page,0,0);
+    lv_obj_set_style_radius(cards_page,0,0);
+    lv_obj_set_style_pad_all(cards_page,0,0);
+    lv_obj_set_scrollable(cards_page,false);
+    cards_button(cards_page,"Назад",24,12,100,48,cards_back,0);
+    home_label(cards_page,"Карточки",144,25,&ui_font_roboto,0xf1f5f9);
+    cards_button(cards_page,"Сохранить",600,12,176,48,cards_action,100);
+    cards_list=lv_obj_create(cards_page);
+    lv_obj_set_pos(cards_list,24,80);
+    lv_obj_set_size(cards_list,752,272);
+    lv_obj_set_style_bg_opa(cards_list,LV_OPA_TRANSP,0);
+    lv_obj_set_style_border_width(cards_list,0,0);
+    lv_obj_set_style_pad_all(cards_list,0,0);
+    lv_obj_set_scroll_dir(cards_list,LV_DIR_VER);
+    for (int i=0;i<HOME_DYNAMIC_MAX;i++) {
+        lv_obj_t *row=cards_rows[i]=lv_obj_create(cards_list);
+        lv_obj_set_pos(row,0,i*92);
+        lv_obj_set_size(row,752,78);
+        lv_obj_set_style_bg_color(row,lv_color_hex(0x1d3044),0);
+        lv_obj_set_style_bg_opa(row,LV_OPA_COVER,0);
+        lv_obj_set_style_border_width(row,0,0);
+        lv_obj_set_style_radius(row,12,0);
+        lv_obj_set_style_pad_all(row,0,0);
+        lv_obj_set_scrollable(row,false);
+        cards_names[i]=home_label(row,"",20,9,&ui_font_roboto,0xf1f5f9);
+        lv_obj_set_width(cards_names[i],490);
+        lv_label_set_long_mode(cards_names[i],LV_LABEL_LONG_DOT);
+        cards_details[i]=home_label(row,"",20,43,&ui_font_roboto,0x7fc8f8);
+        cards_button(row,"+",548,15,54,48,cards_action,i*3);
+        cards_button(row,"-",610,15,54,48,cards_action,i*3+1);
+        cards_button(row,"X",672,15,54,48,cards_action,i*3+2);
+    }
+    cards_button(cards_page,"Добавить карточку",24,370,370,76,cards_action,102);
+    cards_button(cards_page,"Обновить из HA",406,370,370,76,cards_action,101);
+    cards_status=home_label(cards_page,"",24,451,&ui_font_roboto,0x7fc8f8);
 }
-
+static void cards_open(lv_event_t *e)
+{
+    (void)e;
+    lv_mem_monitor_t mon;
+    lv_mem_monitor(&mon);
+    if (mon.free_size<32768 || mon.free_biggest_size<2048) return;
+    if (!cards_page) cards_create();
+    cJSON_Delete(cards_edit);
+    cards_edit=cJSON_Parse(home_layout_last);
+    if (!cards_edit) { cards_edit=cJSON_CreateObject(); cJSON_AddArrayToObject(cards_edit,"cards"); }
+    cards_refresh();
+    lv_label_set_text(cards_status,"");
+    lv_obj_set_hidden(settings_main,true);
+    lv_obj_set_hidden(cards_page,false);
+}
 
 static uint32_t home_values_tick;
 static bool home_watch_ready;
@@ -709,6 +763,7 @@ static void home_dynamic_tick(void)
             nvs_get_str(nvs, "layout", layout, &len);
             nvs_close(nvs);
         }
+        snprintf(cards_ha_layout,sizeof(cards_ha_layout),"%s",layout);
         if (nvs_open("doorcam_cards",NVS_READONLY,&nvs)==ESP_OK) {
             size_t len=sizeof(layout);
             static char local[2048];
